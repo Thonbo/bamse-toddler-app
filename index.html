@@ -316,14 +316,13 @@
     <div class="game-bg"></div>
 
     <!-- Hidden SVG filter: feTurbulence is the displacement *map* (never drawn);
-         feOffset translates the map (controllable via tilt);
-         feDisplacementMap warps the rainbow canvas using R for X, G for Y. -->
+         feDisplacementMap warps the rainbow canvas using R for X, G for Y.
+         The map self-evolves via animated baseFrequency + seed but does not translate. -->
     <svg class="filter-host" aria-hidden="true">
       <defs>
         <filter id="rainbowDisplace" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
           <feTurbulence id="rainbowTurb" type="fractalNoise" baseFrequency="0.006 0.008" numOctaves="2" seed="1" result="noise"/>
-          <feOffset id="rainbowOffset" in="noise" dx="0" dy="0" result="noiseOffset"/>
-          <feDisplacementMap in="SourceGraphic" in2="noiseOffset" scale="42" xChannelSelector="R" yChannelSelector="G"/>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="85" xChannelSelector="R" yChannelSelector="G"/>
         </filter>
       </defs>
     </svg>
@@ -592,71 +591,24 @@ window.addEventListener('resize', resizeRainbow);
 const pointers = new Map(); // pointerId -> { x, y, hue }
 
 // ============================================
-// FILTER ANIMATION — slow self-evolution + tilt-driven map translation
+// FILTER ANIMATION — slow self-evolution only (no map translation)
 // ============================================
-const turbEl   = document.getElementById('rainbowTurb');
-const offsetEl = document.getElementById('rainbowOffset');
+const turbEl = document.getElementById('rainbowTurb');
 
-// Tilt state — beta (front-back) and gamma (left-right), normalized to drift velocity
-let tiltX = 0; // px/frame, target velocity for X translation of map
-let tiltY = 0;
-
-// Accumulated translation of the displacement map (this is the slow drift)
-let mapDx = 0;
-let mapDy = 0;
-
-function setupTiltSensor() {
-  function handle(e) {
-    // gamma: left-right tilt [-90, 90]; beta: front-back [-180, 180]
-    const g = e.gamma || 0;
-    const b = e.beta  || 0;
-    // Normalize: ~30deg tilt = max ~1 px/frame
-    tiltX = Math.max(-1, Math.min(1, g / 30));
-    tiltY = Math.max(-1, Math.min(1, (b - 30) / 30)); // bias so neutral is "phone slightly upright"
-  }
-  // iOS 13+ requires explicit permission
-  if (typeof DeviceOrientationEvent !== 'undefined' &&
-      typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // Trigger permission on first user gesture (tap on game tile or anywhere)
-    const ask = () => {
-      DeviceOrientationEvent.requestPermission().then(state => {
-        if (state === 'granted') window.addEventListener('deviceorientation', handle);
-      }).catch(()=>{});
-      document.removeEventListener('touchend', ask);
-      document.removeEventListener('click', ask);
-    };
-    document.addEventListener('touchend', ask, { once: true });
-    document.addEventListener('click', ask, { once: true });
-  } else if ('DeviceOrientationEvent' in window) {
-    window.addEventListener('deviceorientation', handle);
-  }
-}
-setupTiltSensor();
-
-// Master animation loop: animates turbulence (slow self-evolution) and offset (drift)
+// Master animation loop: animates turbulence (slow self-evolution)
 let filterTime = 0;
 function animateFilter() {
   filterTime += 1;
 
-  // Slow self-evolution of the noise itself (changes the field shape over time)
-  // Tiny baseFrequency oscillation so the noise breathes
+  // Slow self-evolution of the noise itself (the field shape breathes)
   const fx = 0.006 + Math.sin(filterTime * 0.003) * 0.0008;
   const fy = 0.008 + Math.cos(filterTime * 0.0025) * 0.0008;
   turbEl.setAttribute('baseFrequency', `${fx.toFixed(5)} ${fy.toFixed(5)}`);
 
-  // Slowly increment seed for continuous evolution (every ~120 frames bump it)
+  // Slowly increment seed for continuous evolution (every ~120 frames)
   if (filterTime % 120 === 0) {
     turbEl.setAttribute('seed', (filterTime / 120) % 1000);
   }
-
-  // Translate the displacement map → trail flows in tilt direction
-  // Default drift if no tilt: gentle leftward flow
-  const driftX = tiltX !== 0 ? tiltX : -0.5;
-  const driftY = tiltY !== 0 ? tiltY :  0.0;
-  mapDx += driftX;
-  mapDy += driftY;
-  offsetEl.setAttribute('dx', mapDx.toFixed(2));
-  offsetEl.setAttribute('dy', mapDy.toFixed(2));
 
   requestAnimationFrame(animateFilter);
 }
@@ -666,12 +618,51 @@ animateFilter();
 // PER-FRAME DOT DRAWING — replaces line-segment trail
 // While a pointer is down, draw a colored dot at its position each frame.
 // Dot size pulses with a sine wave; hue cycles continuously.
+// History fades via alpha decay + accumulating blur.
 // ============================================
+
+// Offscreen canvas used to apply blur each frame to the existing history,
+// then we redraw it back onto the rainbow canvas at reduced alpha.
+const blurCanvas = document.createElement('canvas');
+const bctx = blurCanvas.getContext('2d');
+function syncBlurCanvas() {
+  blurCanvas.width = rainbowCanvas.width;
+  blurCanvas.height = rainbowCanvas.height;
+}
+syncBlurCanvas();
+window.addEventListener('resize', syncBlurCanvas);
+
+// Tunables
+const FADE_ALPHA = 0.985;   // each frame, history is redrawn at 98.5% alpha (slow fade)
+const BLUR_PX    = 0.6;     // tiny blur per frame; accumulates over many frames
+
 let frameCounter = 0;
 function drawDots() {
   frameCounter++;
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  // STEP 1: snapshot the current canvas history into the offscreen blur canvas
+  bctx.setTransform(1, 0, 0, 1, 0, 0); // reset (no DPR scale on blur canvas)
+  bctx.clearRect(0, 0, blurCanvas.width, blurCanvas.height);
+  bctx.filter = `blur(${BLUR_PX}px)`;
+  bctx.drawImage(rainbowCanvas, 0, 0);
+  bctx.filter = 'none';
+
+  // STEP 2: clear the rainbow canvas and redraw the (blurred) history at reduced alpha
+  rctx.setTransform(1, 0, 0, 1, 0, 0); // work in raw pixel space for the redraw
+  rctx.clearRect(0, 0, rainbowCanvas.width, rainbowCanvas.height);
+  rctx.globalAlpha = FADE_ALPHA;
+  rctx.drawImage(blurCanvas, 0, 0);
+  rctx.globalAlpha = 1;
+
+  // STEP 3: restore DPR transform for crisp dot drawing in CSS pixel space
+  rctx.scale(dpr, dpr);
+
+  // STEP 4: draw a fresh dot for each active pointer
   const sinePulse = (Math.sin(frameCounter * 0.15) + 1) * 0.5; // 0..1
-  const baseRadius = 8 + sinePulse * 6; // 8..14 px
+  const baseRadius = 10 + sinePulse * 8; // 10..18 px
 
   pointers.forEach(p => {
     p.hue = (p.hue + 3) % 360;
@@ -682,13 +673,7 @@ function drawDots() {
     rctx.arc(p.x, p.y, baseRadius, 0, Math.PI * 2);
     rctx.fill();
   });
-
-  // Continuously fade the rainbow trail (was previously a separate loop)
   rctx.shadowBlur = 0;
-  rctx.globalCompositeOperation = 'destination-out';
-  rctx.fillStyle = 'rgba(0,0,0,0.015)'; // slower fade so the displaced trail lingers
-  rctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-  rctx.globalCompositeOperation = 'source-over';
 
   requestAnimationFrame(drawDots);
 }
