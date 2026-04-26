@@ -1,4 +1,4 @@
-# Bamse & Kylling Toddler App
+# Vesters App
 
 A locked-down toddler-safe web app with looping Bamse & Kylling videos and a tap game.
 
