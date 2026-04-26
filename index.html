@@ -58,14 +58,27 @@
   .video-blocker { position: absolute; inset: 0; z-index: 5; }
 
   /* ===== GAME VIEW ===== */
-  .game-view { position: absolute; inset: 0; display: none; background: #0a0a1a; overflow: hidden; }
+  .game-view { position: absolute; inset: 0; display: none; background: #0a0a1a; overflow: hidden; touch-action: none; }
   .game-view.active { display: block; }
   .game-canvas { position: absolute; inset: 0; }
+  .rainbow-canvas { position: absolute; inset: 0; pointer-events: none; }
   .game-bg { position: absolute; inset: 0;
     background: radial-gradient(circle at 30% 30%, rgba(255,23,68,0.4), transparent 50%),
                 radial-gradient(circle at 70% 70%, rgba(41,98,255,0.4), transparent 50%),
                 radial-gradient(circle at 50% 50%, rgba(255,214,0,0.3), transparent 60%),
                 #0a0a1a;
+  }
+
+  /* Tiny particles emitted while finger is held */
+  .spark { position: absolute; pointer-events: none; width: 16px; height: 16px; border-radius: 50%; transform: translate(-50%, -50%); animation: sparkFly 1s ease-out forwards; box-shadow: 0 0 12px currentColor; }
+  @keyframes sparkFly {
+    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.1); opacity: 0; }
+  }
+  .mini-emoji { position: absolute; pointer-events: none; font-size: 28px; transform: translate(-50%, -50%); animation: miniFly 1.1s ease-out forwards; }
+  @keyframes miniFly {
+    0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--rot)); opacity: 0; }
   }
 
   /* ===== EXIT BUTTON (hidden, requires long-press to exit) ===== */
@@ -130,6 +143,7 @@
   <!-- GAME VIEW -->
   <div class="game-view" id="gameView">
     <div class="game-bg"></div>
+    <canvas class="rainbow-canvas" id="rainbowCanvas"></canvas>
     <div class="game-canvas" id="gameCanvas"></div>
     <div class="exit-zone" data-exit></div>
     <div class="exit-progress" id="exitProgress2">
@@ -197,6 +211,9 @@ function showMenu() {
   videoView.classList.remove('active');
   gameView.classList.remove('active');
   ytFrame.src = ''; // stop video
+  // Clear rainbow trail and any active pointers
+  if (typeof rctx !== 'undefined') rctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  if (typeof pointers !== 'undefined') pointers.clear();
 }
 function showVideo(idx) {
   initAudio();
@@ -352,18 +369,142 @@ function spawnFirework(x, y) {
   }
 }
 
-function handleGameTap(e) {
-  // Don't fire when tapping the exit zone
-  if (e.target.closest('[data-exit]') || e.target.closest('.exit-progress')) return;
-  const touches = e.touches || [{ clientX: e.clientX, clientY: e.clientY }];
-  for (const t of touches) {
-    spawnEffect(t.clientX, t.clientY);
-  }
+function handleGameTap(x, y) {
+  spawnEffect(x, y);
   playBlip();
 }
 
-gameView.addEventListener('touchstart', handleGameTap, { passive: true });
-gameView.addEventListener('mousedown', handleGameTap);
+// ============================================
+// RAINBOW TRAIL CANVAS (drag to draw)
+// ============================================
+const rainbowCanvas = document.getElementById('rainbowCanvas');
+const rctx = rainbowCanvas.getContext('2d');
+
+function resizeRainbow() {
+  const dpr = window.devicePixelRatio || 1;
+  rainbowCanvas.width = window.innerWidth * dpr;
+  rainbowCanvas.height = window.innerHeight * dpr;
+  rainbowCanvas.style.width = window.innerWidth + 'px';
+  rainbowCanvas.style.height = window.innerHeight + 'px';
+  rctx.scale(dpr, dpr);
+  rctx.lineCap = 'round';
+  rctx.lineJoin = 'round';
+}
+resizeRainbow();
+window.addEventListener('resize', resizeRainbow);
+
+// Per-pointer state: last position + hue offset so each finger gets its own rainbow
+const pointers = new Map(); // pointerId -> { x, y, hue, lastSpawn }
+
+function drawRainbowSegment(p, x, y) {
+  const dx = x - p.x;
+  const dy = y - p.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const steps = Math.max(1, Math.ceil(dist / 4));
+  for (let i = 0; i < steps; i++) {
+    const t = (i + 1) / steps;
+    const sx = p.x + dx * t;
+    const sy = p.y + dy * t;
+    p.hue = (p.hue + 4) % 360;
+    rctx.strokeStyle = `hsl(${p.hue}, 100%, 60%)`;
+    rctx.lineWidth = 14;
+    rctx.shadowBlur = 18;
+    rctx.shadowColor = `hsl(${p.hue}, 100%, 70%)`;
+    rctx.beginPath();
+    if (i === 0) rctx.moveTo(p.x, p.y); else rctx.moveTo(sx - dx / steps, sy - dy / steps);
+    rctx.lineTo(sx, sy);
+    rctx.stroke();
+  }
+  p.x = x;
+  p.y = y;
+}
+
+// Continuously fade the rainbow trail
+function fadeLoop() {
+  rctx.globalCompositeOperation = 'destination-out';
+  rctx.fillStyle = 'rgba(0,0,0,0.04)';
+  rctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+  rctx.globalCompositeOperation = 'source-over';
+  requestAnimationFrame(fadeLoop);
+}
+fadeLoop();
+
+// ============================================
+// HOLD-TO-SPAWN PARTICLES
+// ============================================
+function spawnHoldParticle(x, y) {
+  // Mix of small sparks and tiny emojis, flying outward in random directions
+  const isSpark = Math.random() < 0.6;
+  const angle = Math.random() * Math.PI * 2;
+  const dist = rand(40, 120);
+  const dx = Math.cos(angle) * dist;
+  const dy = Math.sin(angle) * dist;
+
+  if (isSpark) {
+    const el = document.createElement('div');
+    el.className = 'spark';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.background = pickRandom(COLORS);
+    el.style.color = el.style.background;
+    el.style.setProperty('--dx', dx + 'px');
+    el.style.setProperty('--dy', dy + 'px');
+    canvas.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  } else {
+    const el = document.createElement('div');
+    el.className = 'mini-emoji';
+    el.textContent = pickRandom(EMOJIS);
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.setProperty('--dx', dx + 'px');
+    el.style.setProperty('--dy', dy + 'px');
+    el.style.setProperty('--rot', rand(-360, 360) + 'deg');
+    canvas.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
+  }
+}
+
+// ============================================
+// POINTER EVENTS — supports multi-touch
+// ============================================
+function isExitArea(target) {
+  return target.closest && (target.closest('[data-exit]') || target.closest('.exit-progress'));
+}
+
+gameView.addEventListener('pointerdown', (e) => {
+  if (isExitArea(e.target)) return;
+  e.preventDefault();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, hue: rand(0, 360), lastSpawn: 0 });
+  handleGameTap(e.clientX, e.clientY);
+  try { gameView.setPointerCapture(e.pointerId); } catch(err) {}
+});
+
+gameView.addEventListener('pointermove', (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  drawRainbowSegment(p, e.clientX, e.clientY);
+});
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+}
+gameView.addEventListener('pointerup', endPointer);
+gameView.addEventListener('pointercancel', endPointer);
+gameView.addEventListener('pointerleave', endPointer);
+
+// Hold-to-spawn loop: every ~80ms, emit a particle for each active pointer
+setInterval(() => {
+  const now = Date.now();
+  pointers.forEach(p => {
+    if (now - p.lastSpawn >= 80) {
+      spawnHoldParticle(p.x, p.y);
+      p.lastSpawn = now;
+      // Quieter blip while holding so it doesn't get overwhelming
+      if (Math.random() < 0.25) playBlip();
+    }
+  });
+}, 80);
 
 // ============================================
 // PREVENT ACCIDENTAL EXITS
