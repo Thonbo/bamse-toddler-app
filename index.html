@@ -77,7 +77,7 @@
   #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
 
   /* ===== MENU — Material 3 Expressive ===== */
-  .menu { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px; padding: 32px 24px;
+  .menu { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(12px, 2vh, 32px); padding: clamp(12px, 3vw, 32px);
     background: var(--m3-surface);
     background-image:
       radial-gradient(circle at 15% 10%, rgba(255,179,0,0.18), transparent 45%),
@@ -88,15 +88,17 @@
   .title {
     font-family: 'Roboto Flex', sans-serif;
     font-variation-settings: 'opsz' 144, 'wght' 900, 'wdth' 125;
-    font-size: clamp(40px, 9vw, 72px);
+    font-size: clamp(28px, 5vh, 56px);
     line-height: 1;
     letter-spacing: -0.02em;
     color: var(--m3-on-surface);
     text-align: center;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.2em;
+    flex-wrap: wrap;
   }
   .title .accent {
     color: var(--m3-secondary-container);
@@ -104,16 +106,43 @@
     font-style: italic;
   }
   .title .sub {
+    flex-basis: 100%;
     font-size: 0.28em;
     font-variation-settings: 'opsz' 14, 'wght' 500, 'wdth' 100;
     letter-spacing: 0.4em;
     text-transform: uppercase;
     opacity: 0.55;
-    margin-top: 8px;
+    margin-top: 4px;
   }
 
-  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; width: 100%; max-width: 520px; }
+  /* Default: portrait — 2-col grid, game spans bottom */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 520px;
+    flex: 1;
+    align-content: center;
+  }
   .grid .tile.game { grid-column: span 2; aspect-ratio: 2.4 / 1; }
+
+  /* Landscape: 5 tiles in one row, fills viewport height */
+  @media (orientation: landscape) {
+    .grid {
+      grid-template-columns: repeat(5, 1fr);
+      max-width: min(100%, calc(100vh * 4));
+      gap: clamp(8px, 1.5vw, 16px);
+    }
+    .grid .tile,
+    .grid .tile.game {
+      grid-column: span 1;
+      aspect-ratio: 1;
+    }
+    .grid .tile.game { aspect-ratio: 1; flex-direction: column; }
+    .grid .tile.game .emoji { font-size: clamp(36px, 7vh, 56px); }
+    .grid .tile.game .label { font-size: clamp(16px, 2.5vh, 22px); }
+  }
 
   /* M3 Filled Card with state layer */
   .tile {
@@ -127,7 +156,7 @@
     flex-direction: column;
     align-items: flex-start;
     justify-content: space-between;
-    padding: 20px;
+    padding: clamp(12px, 2vh, 20px);
     box-shadow: var(--m3-elev-1);
     transition:
       transform 200ms var(--m3-easing-spatial),
@@ -135,6 +164,7 @@
       border-radius 250ms var(--m3-easing-spatial);
     font-family: inherit;
     text-align: left;
+    min-width: 0;
   }
   .tile::before {
     content: '';
@@ -155,13 +185,13 @@
   .tile:active::before { opacity: 0.12; }
 
   .tile .emoji {
-    font-size: 56px;
+    font-size: clamp(36px, 8vh, 56px);
     line-height: 1;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.12));
   }
   .tile .label {
     font-variation-settings: 'opsz' 24, 'wght' 700, 'wdth' 110;
-    font-size: 22px;
+    font-size: clamp(14px, 2.5vh, 22px);
     line-height: 1.1;
     letter-spacing: -0.01em;
   }
@@ -173,9 +203,12 @@
   .tile.video4 { background: var(--m3-quinary-container); color: var(--m3-on-quinary-container); }
   .tile.game   { background: var(--m3-primary-container); color: var(--m3-on-primary-container); }
 
-  .tile.game { flex-direction: row; align-items: center; justify-content: center; gap: 16px; padding: 24px; }
-  .tile.game .emoji { font-size: 48px; }
-  .tile.game .label { font-size: 28px; font-variation-settings: 'opsz' 32, 'wght' 900, 'wdth' 110; }
+  /* Portrait-only override for the game tile (wide format) */
+  @media (orientation: portrait) {
+    .tile.game { flex-direction: row; align-items: center; justify-content: center; gap: 16px; padding: 24px; }
+    .tile.game .emoji { font-size: 48px; }
+    .tile.game .label { font-size: 28px; font-variation-settings: 'opsz' 32, 'wght' 900, 'wdth' 110; }
+  }
 
   /* M3 Snackbar — install prompt */
   .install-toast {

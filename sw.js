@@ -2,7 +2,7 @@
 // Caches the app shell so the menu + tap game work fully offline.
 // YouTube videos stream live and require network — that's a YouTube limitation.
 
-const CACHE = 'vesters-v4';
+const CACHE = 'vesters-v5';
 const SHELL = [
   '/',
   '/index.html',
