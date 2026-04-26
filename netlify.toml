@@ -1,0 +1,29 @@
+[build]
+  publish = "."
+
+[build.processing]
+  skip_processing = true
+
+# /sw.js and /index.html must always revalidate. Without this Netlify's CDN
+# (and the browser HTTP cache) can serve a stale shell after a deploy, which
+# means an old service worker keeps controlling pages and users don't see
+# new versions for hours.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
