@@ -478,7 +478,10 @@ function tryFullscreen() {
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
   else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-  // Note: we deliberately do NOT lock orientation — the app should rotate freely with the device.
+  // Lock to landscape — best on tablets and prevents the kid accidentally rotating
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(()=>{});
+  }
 }
 
 // ============================================
