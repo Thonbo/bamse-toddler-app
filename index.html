@@ -372,9 +372,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v13 · Tap to play</span>
+      <span class="sub">v14 · Tap to play</span>
     </h1>
-    <div class="version-badge">v13</div>
+    <div class="version-badge">v14</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -399,7 +399,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="exit-icon">×</span>
     </div>
-    <div class="game-version-badge">v13</div>
+    <div class="game-version-badge">v14</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -492,11 +492,7 @@ let ytApiReady = false;
 let pendingVideoIdx = null;
 let currentVideoIdx = 0;
 
-// Load the YouTube IFrame API
-const ytScriptTag = document.createElement('script');
-ytScriptTag.src = 'https://www.youtube.com/iframe_api';
-document.head.appendChild(ytScriptTag);
-
+// Define the callback BEFORE injecting the script — YouTube calls window.onYouTubeIframeAPIReady
 window.onYouTubeIframeAPIReady = function () {
   ytApiReady = true;
   if (pendingVideoIdx !== null) {
@@ -505,6 +501,28 @@ window.onYouTubeIframeAPIReady = function () {
     showVideo(i);
   }
 };
+
+// Load the YouTube IFrame API
+const ytScriptTag = document.createElement('script');
+ytScriptTag.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(ytScriptTag);
+
+// Fallback: if YT.Player is already on window (e.g., the script loaded in a previous
+// service-worker session and our callback got missed), poll briefly for it.
+const ytReadyPoll = setInterval(() => {
+  if (window.YT && window.YT.Player && !ytApiReady) {
+    ytApiReady = true;
+    clearInterval(ytReadyPoll);
+    if (pendingVideoIdx !== null) {
+      const i = pendingVideoIdx;
+      pendingVideoIdx = null;
+      showVideo(i);
+    }
+  } else if (ytApiReady) {
+    clearInterval(ytReadyPoll);
+  }
+}, 200);
+setTimeout(() => clearInterval(ytReadyPoll), 10000); // give up after 10s
 
 function createOrLoadPlayer(idx) {
   currentVideoIdx = idx;
