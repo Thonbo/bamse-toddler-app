@@ -248,6 +248,20 @@
   .offline-chip::before { content: ''; width: 8px; height: 8px; background: #FFD600; border-radius: 50%; }
   body.is-offline .offline-chip { display: flex; }
 
+  /* Version badge — small, subtle, bottom-right corner of menu */
+  .version-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-family: 'Roboto Flex', monospace;
+    font-variation-settings: 'opsz' 10, 'wght' 500;
+    font-size: 10px;
+    color: var(--m3-on-surface);
+    opacity: 0.35;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+  }
+
   /* ===== VIDEO VIEW ===== */
   .video-view { position: absolute; inset: 0; background: #000; display: none; }
   .video-view.active { display: block; }
@@ -328,6 +342,7 @@
       <span class="accent">App</span>
       <span class="sub">Tap to play</span>
     </h1>
+    <div class="version-badge">v9</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -825,7 +840,17 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) keep
 // ============================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err => console.warn('SW registration failed:', err));
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      // Check for updates every time the page loads
+      reg.update().catch(()=>{});
+      // When a new SW takes control, reload once so the user sees the new version
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
+    }).catch(err => console.warn('SW registration failed:', err));
   });
 }
 
