@@ -42,6 +42,8 @@
     --m3-on-quaternary-container: #FFFFFF;
     --m3-quinary-container: #AA00FF;
     --m3-on-quinary-container: #FFFFFF;
+    --m3-senary-container: #FF6D00;
+    --m3-on-senary-container: #FFFFFF;
 
     --m3-surface: #FFF8E7;
     --m3-on-surface: #1F1B13;
@@ -127,19 +129,20 @@
   }
   .grid .tile.game { grid-column: span 2; aspect-ratio: 2.4 / 1; }
 
-  /* Landscape: 5 tiles in one row, fills viewport height */
+  /* Landscape: 6 tiles in 3 columns × 2 rows */
   @media (orientation: landscape) {
     .grid {
-      grid-template-columns: repeat(5, 1fr);
-      max-width: min(100%, calc(100vh * 4));
+      grid-template-columns: repeat(3, 1fr);
+      grid-auto-rows: 1fr;
+      max-width: min(100%, calc(100vh * 1.8));
       gap: clamp(8px, 1.5vw, 16px);
     }
     .grid .tile,
     .grid .tile.game {
       grid-column: span 1;
-      aspect-ratio: 1;
+      aspect-ratio: auto;
     }
-    .grid .tile.game { aspect-ratio: 1; flex-direction: column; }
+    .grid .tile.game { flex-direction: column; }
     .grid .tile.game .emoji { font-size: clamp(36px, 7vh, 56px); }
     .grid .tile.game .label { font-size: clamp(16px, 2.5vh, 22px); }
   }
@@ -201,6 +204,7 @@
   .tile.video2 { background: var(--m3-tertiary-container); color: var(--m3-on-tertiary-container); }
   .tile.video3 { background: var(--m3-quaternary-container); color: var(--m3-on-quaternary-container); }
   .tile.video4 { background: var(--m3-quinary-container); color: var(--m3-on-quinary-container); }
+  .tile.video5 { background: var(--m3-senary-container);  color: var(--m3-on-senary-container);  }
   .tile.game   { background: var(--m3-primary-container); color: var(--m3-on-primary-container); }
 
   /* Portrait-only override for the game tile (wide format) */
@@ -355,9 +359,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v11 · Tap to play</span>
+      <span class="sub">v12 · Tap to play</span>
     </h1>
-    <div class="version-badge">v11</div>
+    <div class="version-badge">v12</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -397,7 +401,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="exit-icon">×</span>
     </div>
-    <div class="game-version-badge">v11</div>
+    <div class="game-version-badge">v12</div>
   </div>
 
   <!-- Install prompt (M3 snackbar) -->
@@ -422,6 +426,7 @@ const VIDEOS = [
   { id: 'MrdvKm9Nx7M', title: 'Brum Brum',   emoji: '🚗' },
   { id: '21ZYqu7AC1c', title: 'Okay Okay',   emoji: '🎺' },
   { id: 'JYT8D9nMGH4', title: 'Bamses Sang', emoji: '🐻' },
+  { id: 'fSDDn4l8JoQ', title: 'Hjulene',     emoji: '🚌' },
 ];
 
 // ============================================
