@@ -478,8 +478,7 @@ function tryFullscreen() {
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
   else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-  // Lock orientation if supported
-  if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{});
+  // Note: we deliberately do NOT lock orientation — the app should rotate freely with the device.
 }
 
 // ============================================
@@ -609,16 +608,30 @@ const rctx = rainbowCanvas.getContext('2d');
 
 function resizeRainbow() {
   const dpr = window.devicePixelRatio || 1;
-  rainbowCanvas.width = window.innerWidth * dpr;
+  rainbowCanvas.width  = window.innerWidth  * dpr;
   rainbowCanvas.height = window.innerHeight * dpr;
-  rainbowCanvas.style.width = window.innerWidth + 'px';
+  rainbowCanvas.style.width  = window.innerWidth  + 'px';
   rainbowCanvas.style.height = window.innerHeight + 'px';
+  // Reset any prior transform before re-applying DPR scale
+  rctx.setTransform(1, 0, 0, 1, 0, 0);
   rctx.scale(dpr, dpr);
   rctx.lineCap = 'round';
   rctx.lineJoin = 'round';
+  // Keep the offscreen blur canvas in sync with the rainbow canvas
+  if (typeof blurCanvas !== 'undefined') {
+    blurCanvas.width  = rainbowCanvas.width;
+    blurCanvas.height = rainbowCanvas.height;
+  }
 }
 resizeRainbow();
+// Resize on both resize and orientationchange. orientationchange fires before
+// the viewport is updated on some Android builds, so we re-run on the next frame too.
 window.addEventListener('resize', resizeRainbow);
+window.addEventListener('orientationchange', () => {
+  resizeRainbow();
+  requestAnimationFrame(resizeRainbow);
+  setTimeout(resizeRainbow, 250);
+});
 
 // Per-pointer state: position + hue offset so each finger gets its own rainbow
 const pointers = new Map(); // pointerId -> { x, y, hue }
@@ -658,12 +671,9 @@ animateFilter();
 // then we redraw it back onto the rainbow canvas at reduced alpha.
 const blurCanvas = document.createElement('canvas');
 const bctx = blurCanvas.getContext('2d');
-function syncBlurCanvas() {
-  blurCanvas.width = rainbowCanvas.width;
-  blurCanvas.height = rainbowCanvas.height;
-}
-syncBlurCanvas();
-window.addEventListener('resize', syncBlurCanvas);
+// Initial sync (subsequent resizes are handled inside resizeRainbow above)
+blurCanvas.width = rainbowCanvas.width;
+blurCanvas.height = rainbowCanvas.height;
 
 // Tunables
 const FADE_ALPHA = 0.985;   // each frame, history is redrawn at 98.5% alpha (slow fade)
