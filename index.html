@@ -372,9 +372,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v14 · Tap to play</span>
+      <span class="sub">v15 · Tap to play</span>
     </h1>
-    <div class="version-badge">v14</div>
+    <div class="version-badge">v15</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -399,7 +399,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="exit-icon">×</span>
     </div>
-    <div class="game-version-badge">v14</div>
+    <div class="game-version-badge">v15</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -494,7 +494,9 @@ let currentVideoIdx = 0;
 
 // Define the callback BEFORE injecting the script — YouTube calls window.onYouTubeIframeAPIReady
 window.onYouTubeIframeAPIReady = function () {
+  console.log('[YT] onYouTubeIframeAPIReady called');
   ytApiReady = true;
+  window.__ytApiReady = true;
   if (pendingVideoIdx !== null) {
     const i = pendingVideoIdx;
     pendingVideoIdx = null;
@@ -511,7 +513,9 @@ document.head.appendChild(ytScriptTag);
 // service-worker session and our callback got missed), poll briefly for it.
 const ytReadyPoll = setInterval(() => {
   if (window.YT && window.YT.Player && !ytApiReady) {
+    console.log('[YT] poll: YT.Player ready, marking apiReady');
     ytApiReady = true;
+    window.__ytApiReady = true;
     clearInterval(ytReadyPoll);
     if (pendingVideoIdx !== null) {
       const i = pendingVideoIdx;
@@ -522,38 +526,49 @@ const ytReadyPoll = setInterval(() => {
     clearInterval(ytReadyPoll);
   }
 }, 200);
-setTimeout(() => clearInterval(ytReadyPoll), 10000); // give up after 10s
+setTimeout(() => clearInterval(ytReadyPoll), 10000);
 
 function createOrLoadPlayer(idx) {
   currentVideoIdx = idx;
   const id = VIDEOS[idx].id;
-  if (!ytPlayer) {
-    ytPlayer = new YT.Player('ytFrame', {
-      videoId: id,
-      playerVars: {
-        autoplay: 1,
-        controls: 0,
-        modestbranding: 1,
-        rel: 0,
-        playsinline: 1,
-        iv_load_policy: 3,
-        fs: 0,
-        disablekb: 1,
-      },
-      events: {
-        onReady: (e) => e.target.playVideo(),
-        onStateChange: (e) => {
-          // 0 = ended → advance to next in sequence
-          if (e.data === YT.PlayerState.ENDED) {
-            const next = (currentVideoIdx + 1) % VIDEOS.length;
-            currentVideoIdx = next;
-            ytPlayer.loadVideoById(VIDEOS[next].id);
-          }
+  console.log('[YT] createOrLoadPlayer idx=' + idx + ' id=' + id + ' existing=' + !!ytPlayer);
+  try {
+    if (!ytPlayer) {
+      const target = document.getElementById('ytFrame');
+      console.log('[YT] target element:', target?.tagName, 'parent:', target?.parentElement?.id);
+      ytPlayer = new YT.Player('ytFrame', {
+        videoId: id,
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1,
+          iv_load_policy: 3,
+          fs: 0,
+          disablekb: 1,
         },
-      },
-    });
-  } else {
-    ytPlayer.loadVideoById(id);
+        events: {
+          onReady: (e) => { console.log('[YT] onReady'); e.target.playVideo(); },
+          onError: (e) => { console.log('[YT] onError code=' + e.data); },
+          onStateChange: (e) => {
+            console.log('[YT] state=' + e.data);
+            if (e.data === YT.PlayerState.ENDED) {
+              const next = (currentVideoIdx + 1) % VIDEOS.length;
+              currentVideoIdx = next;
+              ytPlayer.loadVideoById(VIDEOS[next].id);
+            }
+          },
+        },
+      });
+      console.log('[YT] new YT.Player constructed, returned:', !!ytPlayer);
+      // Expose for debugging/testing
+      window.__ytPlayer = ytPlayer;
+    } else {
+      ytPlayer.loadVideoById(id);
+    }
+  } catch (err) {
+    console.error('[YT] createOrLoadPlayer error:', err.message);
   }
 }
 
