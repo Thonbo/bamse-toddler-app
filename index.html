@@ -295,7 +295,20 @@
   .rainbow-canvas { position: absolute; inset: 0; pointer-events: none; filter: url(#rainbowDisplace); will-change: filter; }
   /* Hidden SVG host for the displacement filter — never rendered, only referenced */
   .filter-host { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
-  .game-bg { position: absolute; inset: 0;
+
+  /* Paint layer: top-level overlay above video + game.
+     Hidden by default; activated when a video plays or game mode is active.
+     Captures touches and forwards them to the pointer handlers. */
+  .paint-layer {
+    position: absolute;
+    inset: 0;
+    display: none;
+    z-index: 10;
+    touch-action: none;
+    background: transparent;
+  }
+  .paint-layer.active { display: block; }
+  .game-bg { position: absolute; inset: 0; pointer-events: none;
     background: radial-gradient(circle at 30% 30%, rgba(255,23,68,0.4), transparent 50%),
                 radial-gradient(circle at 70% 70%, rgba(41,98,255,0.4), transparent 50%),
                 radial-gradient(circle at 50% 50%, rgba(255,214,0,0.3), transparent 60%),
@@ -316,8 +329,8 @@
 
   /* ===== EXIT BUTTON (hidden, requires long-press to exit) ===== */
   .exit-zone { position: absolute; top: 0; right: 0; width: 80px; height: 80px; z-index: 100; }
-  .exit-progress { position: absolute; top: 12px; right: 12px; width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 101; }
-  .exit-progress.showing { opacity: 1; }
+  .video-view .exit-zone, .game-view .exit-zone { z-index: 110; } /* sit above paint layer */
+  .exit-progress { position: absolute; top: 12px; right: 12px; width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 111; }  .exit-progress.showing { opacity: 1; }
   .exit-progress svg { width: 100%; height: 100%; transform: rotate(-90deg); }
   .exit-progress circle { fill: none; stroke: white; stroke-width: 4; }
   .exit-progress .track { stroke: rgba(255,255,255,0.2); }
@@ -359,9 +372,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v12 · Tap to play</span>
+      <span class="sub">v13 · Tap to play</span>
     </h1>
-    <div class="version-badge">v12</div>
+    <div class="version-badge">v13</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -378,13 +391,21 @@
     </div>
   </div>
 
-  <!-- GAME VIEW -->
+  <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
   <div class="game-view" id="gameView">
     <div class="game-bg"></div>
+    <div class="exit-zone" data-exit></div>
+    <div class="exit-progress" id="exitProgress2">
+      <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
+      <span class="exit-icon">×</span>
+    </div>
+    <div class="game-version-badge">v13</div>
+  </div>
 
-    <!-- Hidden SVG filter: feTurbulence is the displacement *map* (never drawn);
-         feDisplacementMap warps the rainbow canvas using R for X, G for Y.
-         The map self-evolves via animated baseFrequency + seed but does not translate. -->
+  <!-- PAINT LAYER — overlays everything during video + game.
+       Transparent. Captures touches and renders rainbow trail + tap effects. -->
+  <div class="paint-layer" id="paintLayer">
+    <!-- Hidden SVG filter for the rainbow displacement effect -->
     <svg class="filter-host" aria-hidden="true">
       <defs>
         <filter id="rainbowDisplace" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
@@ -393,15 +414,8 @@
         </filter>
       </defs>
     </svg>
-
     <canvas class="rainbow-canvas" id="rainbowCanvas"></canvas>
     <div class="game-canvas" id="gameCanvas"></div>
-    <div class="exit-zone" data-exit></div>
-    <div class="exit-progress" id="exitProgress2">
-      <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
-      <span class="exit-icon">×</span>
-    </div>
-    <div class="game-version-badge">v12</div>
   </div>
 
   <!-- Install prompt (M3 snackbar) -->
@@ -468,29 +482,97 @@ const menu = document.getElementById('menu');
 const videoView = document.getElementById('videoView');
 const gameView = document.getElementById('gameView');
 const ytFrame = document.getElementById('ytFrame');
+const paintLayer = document.getElementById('paintLayer');
+
+// ============================================
+// YOUTUBE IFRAME API — for sequential video playback (advances to next video on end)
+// ============================================
+let ytPlayer = null;
+let ytApiReady = false;
+let pendingVideoIdx = null;
+let currentVideoIdx = 0;
+
+// Load the YouTube IFrame API
+const ytScriptTag = document.createElement('script');
+ytScriptTag.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(ytScriptTag);
+
+window.onYouTubeIframeAPIReady = function () {
+  ytApiReady = true;
+  if (pendingVideoIdx !== null) {
+    const i = pendingVideoIdx;
+    pendingVideoIdx = null;
+    showVideo(i);
+  }
+};
+
+function createOrLoadPlayer(idx) {
+  currentVideoIdx = idx;
+  const id = VIDEOS[idx].id;
+  if (!ytPlayer) {
+    ytPlayer = new YT.Player('ytFrame', {
+      videoId: id,
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        modestbranding: 1,
+        rel: 0,
+        playsinline: 1,
+        iv_load_policy: 3,
+        fs: 0,
+        disablekb: 1,
+      },
+      events: {
+        onReady: (e) => e.target.playVideo(),
+        onStateChange: (e) => {
+          // 0 = ended → advance to next in sequence
+          if (e.data === YT.PlayerState.ENDED) {
+            const next = (currentVideoIdx + 1) % VIDEOS.length;
+            currentVideoIdx = next;
+            ytPlayer.loadVideoById(VIDEOS[next].id);
+          }
+        },
+      },
+    });
+  } else {
+    ytPlayer.loadVideoById(id);
+  }
+}
 
 function showMenu() {
   menu.style.display = 'flex';
   videoView.classList.remove('active');
   gameView.classList.remove('active');
-  ytFrame.src = ''; // stop video
+  paintLayer.classList.remove('active');
+  if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
   // Clear rainbow trail and any active pointers
-  if (typeof rctx !== 'undefined') rctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  if (typeof rctx !== 'undefined') rctx.clearRect(0, 0, rainbowCanvas.width, rainbowCanvas.height);
   if (typeof pointers !== 'undefined') pointers.clear();
 }
+
 function showVideo(idx) {
   initAudio();
-  const id = VIDEOS[idx].id;
-  // playlist=ID makes a single video loop; loop=1 + playlist=ID is the trick
-  ytFrame.src = `https://www.youtube.com/embed/${id}?autoplay=1&loop=1&playlist=${id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3`;
+  if (!ytApiReady) {
+    pendingVideoIdx = idx;
+    // Show the view and the paint layer immediately; the player will appear once API loads
+    menu.style.display = 'none';
+    videoView.classList.add('active');
+    paintLayer.classList.add('active');
+    tryFullscreen();
+    return;
+  }
+  createOrLoadPlayer(idx);
   menu.style.display = 'none';
   videoView.classList.add('active');
+  paintLayer.classList.add('active'); // paint overlay ALWAYS active during video
   tryFullscreen();
 }
+
 function showGame() {
   initAudio();
   menu.style.display = 'none';
   gameView.classList.add('active');
+  paintLayer.classList.add('active');
   tryFullscreen();
 }
 
@@ -645,6 +727,11 @@ function handleGameTap(x, y) {
 const rainbowCanvas = document.getElementById('rainbowCanvas');
 const rctx = rainbowCanvas.getContext('2d');
 
+// Offscreen canvas used to apply blur each frame to the existing history.
+// Declared FIRST so resizeRainbow() can safely sync it without a TDZ ReferenceError.
+const blurCanvas = document.createElement('canvas');
+const bctx = blurCanvas.getContext('2d');
+
 function resizeRainbow() {
   const dpr = window.devicePixelRatio || 1;
   rainbowCanvas.width  = window.innerWidth  * dpr;
@@ -657,10 +744,8 @@ function resizeRainbow() {
   rctx.lineCap = 'round';
   rctx.lineJoin = 'round';
   // Keep the offscreen blur canvas in sync with the rainbow canvas
-  if (typeof blurCanvas !== 'undefined') {
-    blurCanvas.width  = rainbowCanvas.width;
-    blurCanvas.height = rainbowCanvas.height;
-  }
+  blurCanvas.width  = rainbowCanvas.width;
+  blurCanvas.height = rainbowCanvas.height;
 }
 resizeRainbow();
 // Resize on both resize and orientationchange. orientationchange fires before
@@ -706,13 +791,7 @@ animateFilter();
 // History fades via alpha decay + accumulating blur.
 // ============================================
 
-// Offscreen canvas used to apply blur each frame to the existing history,
-// then we redraw it back onto the rainbow canvas at reduced alpha.
-const blurCanvas = document.createElement('canvas');
-const bctx = blurCanvas.getContext('2d');
-// Initial sync (subsequent resizes are handled inside resizeRainbow above)
-blurCanvas.width = rainbowCanvas.width;
-blurCanvas.height = rainbowCanvas.height;
+// Offscreen blur canvas was already declared earlier (next to rainbowCanvas).
 
 // Tunables
 const FADE_ALPHA = 0.985;   // each frame, history is redrawn at 98.5% alpha (slow fade)
@@ -804,15 +883,15 @@ function isExitArea(target) {
   return target.closest && (target.closest('[data-exit]') || target.closest('.exit-progress'));
 }
 
-gameView.addEventListener('pointerdown', (e) => {
+paintLayer.addEventListener('pointerdown', (e) => {
   if (isExitArea(e.target)) return;
   e.preventDefault();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, hue: rand(0, 360), lastSpawn: 0 });
   handleGameTap(e.clientX, e.clientY);
-  try { gameView.setPointerCapture(e.pointerId); } catch(err) {}
+  try { paintLayer.setPointerCapture(e.pointerId); } catch(err) {}
 });
 
-gameView.addEventListener('pointermove', (e) => {
+paintLayer.addEventListener('pointermove', (e) => {
   const p = pointers.get(e.pointerId);
   if (!p) return;
   // Per-frame dot loop reads p.x / p.y directly — just update position here
@@ -823,9 +902,9 @@ gameView.addEventListener('pointermove', (e) => {
 function endPointer(e) {
   pointers.delete(e.pointerId);
 }
-gameView.addEventListener('pointerup', endPointer);
-gameView.addEventListener('pointercancel', endPointer);
-gameView.addEventListener('pointerleave', endPointer);
+paintLayer.addEventListener('pointerup', endPointer);
+paintLayer.addEventListener('pointercancel', endPointer);
+paintLayer.addEventListener('pointerleave', endPointer);
 
 // Hold-to-spawn loop: every ~80ms, emit a particle for each active pointer
 setInterval(() => {
