@@ -258,7 +258,7 @@
   /* ===== GAME VIEW ===== */
   .game-view { position: absolute; inset: 0; display: none; background: #0a0a1a; overflow: hidden; touch-action: none; }
   .game-view.active { display: block; }
-  .game-canvas { position: absolute; inset: 0; }
+  .game-canvas { position: absolute; inset: 0; pointer-events: none; }
   .rainbow-canvas { position: absolute; inset: 0; pointer-events: none; filter: url(#rainbowDisplace); will-change: filter; }
   /* Hidden SVG host for the displacement filter — never rendered, only referenced */
   .filter-host { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
