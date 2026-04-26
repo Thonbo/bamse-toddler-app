@@ -1,0 +1,17 @@
+{
+  "name": "Vesters App",
+  "short_name": "Vesters",
+  "description": "Bamse & Kylling videos and tap game for toddlers",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#FFF8E7",
+  "theme_color": "#FFB300",
+  "lang": "da",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

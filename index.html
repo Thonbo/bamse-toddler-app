@@ -6,6 +6,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vesters App">
+<meta name="theme-color" content="#FFB300">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
 <title>Vesters App</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
@@ -171,6 +177,44 @@
   .tile.game .emoji { font-size: 48px; }
   .tile.game .label { font-size: 28px; font-variation-settings: 'opsz' 32, 'wght' 900, 'wdth' 110; }
 
+  /* M3 Snackbar — install prompt */
+  .install-toast {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: #1F1B13; color: #FFF8E7;
+    padding: 12px 8px 12px 20px;
+    border-radius: var(--m3-shape-xs);
+    box-shadow: var(--m3-elev-3);
+    display: none; align-items: center; gap: 8px;
+    font-family: 'Roboto Flex', sans-serif;
+    font-variation-settings: 'opsz' 14, 'wght' 500;
+    font-size: 14px;
+    max-width: 90vw; z-index: 200;
+  }
+  .install-toast button {
+    border: none; background: transparent;
+    color: var(--m3-primary-container);
+    font-family: inherit; font-size: 14px;
+    font-variation-settings: 'opsz' 14, 'wght' 700;
+    padding: 8px 12px; border-radius: var(--m3-shape-sm);
+    cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .install-toast button:active { background: rgba(255, 214, 0, 0.12); }
+
+  /* Offline indicator chip */
+  .offline-chip {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    background: #1F1B13; color: #FFD600;
+    padding: 6px 14px; border-radius: 999px;
+    font-family: 'Roboto Flex', sans-serif;
+    font-variation-settings: 'opsz' 12, 'wght' 600;
+    font-size: 12px;
+    display: none; align-items: center; gap: 6px;
+    z-index: 200;
+    box-shadow: var(--m3-elev-2);
+  }
+  .offline-chip::before { content: ''; width: 8px; height: 8px; background: #FFD600; border-radius: 50%; }
+  body.is-offline .offline-chip { display: flex; }
+
   /* ===== VIDEO VIEW ===== */
   .video-view { position: absolute; inset: 0; background: #000; display: none; }
   .video-view.active { display: block; }
@@ -292,6 +336,16 @@
       <span class="exit-icon">×</span>
     </div>
   </div>
+
+  <!-- Install prompt (M3 snackbar) -->
+  <div class="install-toast" id="installToast" role="status">
+    <span>Install Vesters App for offline use</span>
+    <button id="installBtn">Install</button>
+    <button id="installDismiss" aria-label="Dismiss">✕</button>
+  </div>
+
+  <!-- Offline indicator -->
+  <div class="offline-chip">Offline — videos need WiFi</div>
 
 </div>
 
@@ -734,6 +788,45 @@ async function keepAwake() {
 }
 document.addEventListener('click', keepAwake, { once: true });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+
+// ============================================
+// SERVICE WORKER — offline app shell
+// ============================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => console.warn('SW registration failed:', err));
+  });
+}
+
+// PWA install prompt — show a small toast on the menu when installable
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstall = e;
+  const toast = document.getElementById('installToast');
+  if (toast) toast.style.display = 'flex';
+});
+document.getElementById('installBtn')?.addEventListener('click', async () => {
+  if (!deferredInstall) return;
+  deferredInstall.prompt();
+  await deferredInstall.userChoice;
+  deferredInstall = null;
+  document.getElementById('installToast').style.display = 'none';
+});
+document.getElementById('installDismiss')?.addEventListener('click', () => {
+  document.getElementById('installToast').style.display = 'none';
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installToast').style.display = 'none';
+});
+
+// Offline detection — toggles a chip and could be used to grey out video tiles
+function updateOnlineStatus() {
+  document.body.classList.toggle('is-offline', !navigator.onLine);
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
 </script>
 </body>
 </html>
