@@ -543,8 +543,8 @@
       <defs>
         <filter id="rainbowDisplace" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
           <feTurbulence id="rainbowTurb" type="fractalNoise" baseFrequency="0.006 0.008" numOctaves="2" seed="1" stitchTiles="noStitch" result="noise"/>
-          <!-- feOffset is the JS-land approximation of AS3 perlinNoise() offsets:
-               translates the whole noise texture instead of per-octave. Animated below. -->
+          <!-- feOffset reproduces AS3 DisplacementMapFilter.mapPoint by translating
+               the displacement map relative to the source. Animated below. -->
           <feOffset id="rainbowOffset" in="noise" dx="0" dy="0" result="shiftedNoise"/>
           <feDisplacementMap id="rainbowDispMap" in="SourceGraphic" in2="shiftedNoise" scale="85" xChannelSelector="R" yChannelSelector="G"/>
         </filter>
@@ -661,16 +661,16 @@
       <input type="range" id="i-seedInterval" min="10" max="600" step="5">
     </div>
 
-    <h3>AS3-style translate (feOffset)</h3>
-    <p class="sp-hint">SVG turbulence has no per-octave offsets like AS3's <code>p1</code>/<code>p2</code> — this approximates it by translating the whole noise via <code>feOffset</code>. Pairs well with <em>Stitch tiles</em>.</p>
+    <h3>mapPoint translation (feOffset)</h3>
+    <p class="sp-hint">SVG/JS has no <code>mapPoint</code> property on the displacement filter — this reproduces it by translating the displacement map via <code>feOffset</code> each frame. Equivalent to animating <code>mapPoint.x</code> / <code>mapPoint.y</code> in AS3. Pairs well with <em>Stitch tiles</em> to avoid edge artifacts.</p>
 
     <div class="sp-row">
-      <label>Translate speed px (per frame) <span class="val" id="v-pSpeedX"></span></label>
+      <label>mapPoint.x speed (per frame) <span class="val" id="v-pSpeedX"></span></label>
       <input type="range" id="i-pSpeedX" min="-3" max="3" step="0.05">
     </div>
 
     <div class="sp-row">
-      <label>Translate speed py (per frame) <span class="val" id="v-pSpeedY"></span></label>
+      <label>mapPoint.y speed (per frame) <span class="val" id="v-pSpeedY"></span></label>
       <input type="range" id="i-pSpeedY" min="-3" max="3" step="0.05">
     </div>
 
@@ -1005,7 +1005,7 @@ const FILTER_DEFAULTS = {
   oscSpdY:      0.0025,
   seedEvolve:   true,
   seedInterval: 120,
-  // AS3-style feOffset translate
+  // mapPoint-style feOffset translate (animates feOffset dx/dy each frame)
   pSpeedX:      0,
   pSpeedY:      0,
 };
