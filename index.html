@@ -362,6 +362,133 @@
   }
 
   .back-btn { position: absolute; top: 12px; left: 12px; z-index: 100; width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,0.5); color: white; border: 2px solid rgba(255,255,255,0.3); font-size: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+  /* ===== SETTINGS — long-press top-left to open ===== */
+  /* Invisible touch zone mirroring the exit-zone, but on the left */
+  .settings-zone { position: absolute; top: 0; left: 0; width: 80px; height: 80px; z-index: 110; }
+  .settings-progress { position: absolute; top: 12px; left: 12px; width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 111; }
+  .settings-progress.showing { opacity: 1; }
+  .settings-progress svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .settings-progress circle { fill: none; stroke: white; stroke-width: 4; }
+  .settings-progress .track { stroke: rgba(255,255,255,0.2); }
+  .settings-progress .fill { stroke-dasharray: 157; stroke-dashoffset: 157; transition: stroke-dashoffset 0.05s linear; }
+  .settings-icon { position: absolute; color: white; font-size: 22px; font-weight: 700; }
+
+  /* The panel itself: slide-in from the left, scrollable, dark surface */
+  .settings-panel {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: min(380px, 92vw);
+    background: rgba(15, 15, 25, 0.96);
+    color: #FFF8E7;
+    z-index: 300;
+    transform: translateX(-105%);
+    transition: transform 280ms var(--m3-easing-emphasized);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px 18px 32px;
+    box-shadow: 0 0 40px rgba(0,0,0,0.6);
+    font-family: 'Roboto Flex', sans-serif;
+    font-variation-settings: 'opsz' 14, 'wght' 500;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .settings-panel.open { transform: translateX(0); }
+  .settings-panel h2 {
+    font-variation-settings: 'opsz' 24, 'wght' 700, 'wdth' 110;
+    font-size: 22px;
+    margin-bottom: 4px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .settings-panel h3 {
+    font-variation-settings: 'opsz' 18, 'wght' 700, 'wdth' 100;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--m3-primary-container);
+    margin: 22px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .settings-panel .sp-close {
+    background: rgba(255,255,255,0.08);
+    color: inherit; border: none;
+    width: 36px; height: 36px; border-radius: 50%;
+    font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .settings-panel .sp-close:active { background: rgba(255,255,255,0.18); }
+  .sp-row { margin-bottom: 14px; }
+  .sp-row label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 13px; margin-bottom: 4px;
+    font-variation-settings: 'opsz' 13, 'wght' 600;
+  }
+  .sp-row label .val {
+    font-family: 'Roboto Flex', monospace;
+    font-variation-settings: 'opsz' 12, 'wght' 500;
+    font-size: 12px;
+    color: var(--m3-primary-container);
+    background: rgba(255,255,255,0.06);
+    padding: 2px 8px;
+    border-radius: 6px;
+    min-width: 56px; text-align: right;
+  }
+  .sp-row input[type="range"] {
+    width: 100%; height: 28px; accent-color: var(--m3-primary-container);
+    background: transparent;
+  }
+  .sp-row select, .sp-row .seg {
+    width: 100%;
+  }
+  .sp-row .seg {
+    display: flex; gap: 4px; background: rgba(255,255,255,0.06);
+    border-radius: 8px; padding: 3px;
+  }
+  .sp-row .seg button {
+    flex: 1; border: none; background: transparent; color: inherit;
+    padding: 7px 4px; border-radius: 6px; cursor: pointer;
+    font-family: inherit; font-size: 12px;
+    font-variation-settings: 'opsz' 12, 'wght' 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .sp-row .seg button.active {
+    background: var(--m3-primary-container);
+    color: var(--m3-on-primary-container);
+  }
+  .sp-row.toggle label { cursor: pointer; }
+  .sp-row.toggle input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    width: 36px; height: 20px;
+    background: rgba(255,255,255,0.15); border-radius: 999px;
+    position: relative; cursor: pointer;
+    transition: background 150ms;
+  }
+  .sp-row.toggle input[type="checkbox"]::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: white; transition: transform 150ms;
+  }
+  .sp-row.toggle input[type="checkbox"]:checked {
+    background: var(--m3-primary-container);
+  }
+  .sp-row.toggle input[type="checkbox"]:checked::after {
+    transform: translateX(16px);
+  }
+  .sp-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .sp-actions button {
+    flex: 1; border: none; padding: 12px; border-radius: 999px;
+    font-family: inherit; font-size: 13px;
+    font-variation-settings: 'opsz' 13, 'wght' 700;
+    cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .sp-actions .reset { background: rgba(255,255,255,0.1); color: inherit; }
+  .sp-actions .reset:active { background: rgba(255,255,255,0.2); }
+  .sp-hint {
+    font-size: 11px; opacity: 0.55; line-height: 1.4;
+    margin-top: 4px;
+    font-variation-settings: 'opsz' 11, 'wght' 400;
+  }
 </style>
 </head>
 <body>
@@ -372,9 +499,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v16 · Tap to play</span>
+      <span class="sub">v17 · Tap to play</span>
     </h1>
-    <div class="version-badge">v16</div>
+    <div class="version-badge">v17</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -399,7 +526,13 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="exit-icon">×</span>
     </div>
-    <div class="game-version-badge">v16</div>
+    <!-- Hidden long-press zone to open the settings panel (mirrors exit gesture) -->
+    <div class="settings-zone" id="settingsZone"></div>
+    <div class="settings-progress" id="settingsProgress">
+      <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
+      <span class="settings-icon">⚙</span>
+    </div>
+    <div class="game-version-badge">v17</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -409,8 +542,11 @@
     <svg class="filter-host" aria-hidden="true">
       <defs>
         <filter id="rainbowDisplace" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
-          <feTurbulence id="rainbowTurb" type="fractalNoise" baseFrequency="0.006 0.008" numOctaves="2" seed="1" result="noise"/>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="85" xChannelSelector="R" yChannelSelector="G"/>
+          <feTurbulence id="rainbowTurb" type="fractalNoise" baseFrequency="0.006 0.008" numOctaves="2" seed="1" stitchTiles="noStitch" result="noise"/>
+          <!-- feOffset is the JS-land approximation of AS3 perlinNoise() offsets:
+               translates the whole noise texture instead of per-octave. Animated below. -->
+          <feOffset id="rainbowOffset" in="noise" dx="0" dy="0" result="shiftedNoise"/>
+          <feDisplacementMap id="rainbowDispMap" in="SourceGraphic" in2="shiftedNoise" scale="85" xChannelSelector="R" yChannelSelector="G"/>
         </filter>
       </defs>
     </svg>
@@ -427,6 +563,121 @@
 
   <!-- Offline indicator -->
   <div class="offline-chip">Offline — videos need WiFi</div>
+
+  <!-- ===== SETTINGS PANEL — long-press top-left corner of game view to open ===== -->
+  <aside class="settings-panel" id="settingsPanel" aria-hidden="true">
+    <h2>Filter Settings <button class="sp-close" id="settingsClose" aria-label="Close">×</button></h2>
+    <p class="sp-hint">Tweak the SVG <code>feTurbulence</code> + <code>feDisplacementMap</code> in real time. Values persist locally.</p>
+
+    <h3>Perlin Noise (feTurbulence)</h3>
+
+    <div class="sp-row">
+      <label>Type</label>
+      <div class="seg" data-seg="turbType">
+        <button data-val="fractalNoise">Fractal</button>
+        <button data-val="turbulence">Turbulence</button>
+      </div>
+    </div>
+
+    <div class="sp-row">
+      <label>Base frequency X <span class="val" id="v-baseFreqX"></span></label>
+      <input type="range" id="i-baseFreqX" min="0.0001" max="0.1" step="0.0001">
+    </div>
+
+    <div class="sp-row">
+      <label>Base frequency Y <span class="val" id="v-baseFreqY"></span></label>
+      <input type="range" id="i-baseFreqY" min="0.0001" max="0.1" step="0.0001">
+    </div>
+
+    <div class="sp-row">
+      <label>numOctaves <span class="val" id="v-octaves"></span></label>
+      <input type="range" id="i-octaves" min="1" max="8" step="1">
+    </div>
+
+    <div class="sp-row">
+      <label>Seed <span class="val" id="v-seed"></span></label>
+      <input type="range" id="i-seed" min="0" max="999" step="1">
+    </div>
+
+    <div class="sp-row toggle">
+      <label>Stitch tiles <input type="checkbox" id="i-stitch"></label>
+    </div>
+
+    <h3>Displacement Map</h3>
+
+    <div class="sp-row">
+      <label>Scale <span class="val" id="v-scale"></span></label>
+      <input type="range" id="i-scale" min="0" max="400" step="1">
+    </div>
+
+    <div class="sp-row">
+      <label>X channel selector</label>
+      <div class="seg" data-seg="xChan">
+        <button data-val="R">R</button><button data-val="G">G</button>
+        <button data-val="B">B</button><button data-val="A">A</button>
+      </div>
+    </div>
+
+    <div class="sp-row">
+      <label>Y channel selector</label>
+      <div class="seg" data-seg="yChan">
+        <button data-val="R">R</button><button data-val="G">G</button>
+        <button data-val="B">B</button><button data-val="A">A</button>
+      </div>
+    </div>
+
+    <h3>Self-evolution animation</h3>
+
+    <div class="sp-row toggle">
+      <label>Animate baseFrequency <input type="checkbox" id="i-animFreq"></label>
+    </div>
+
+    <div class="sp-row">
+      <label>Freq oscillation amp X <span class="val" id="v-oscAmpX"></span></label>
+      <input type="range" id="i-oscAmpX" min="0" max="0.005" step="0.00005">
+    </div>
+
+    <div class="sp-row">
+      <label>Freq oscillation amp Y <span class="val" id="v-oscAmpY"></span></label>
+      <input type="range" id="i-oscAmpY" min="0" max="0.005" step="0.00005">
+    </div>
+
+    <div class="sp-row">
+      <label>Oscillation speed X <span class="val" id="v-oscSpdX"></span></label>
+      <input type="range" id="i-oscSpdX" min="0" max="0.02" step="0.0001">
+    </div>
+
+    <div class="sp-row">
+      <label>Oscillation speed Y <span class="val" id="v-oscSpdY"></span></label>
+      <input type="range" id="i-oscSpdY" min="0" max="0.02" step="0.0001">
+    </div>
+
+    <div class="sp-row toggle">
+      <label>Auto-evolve seed <input type="checkbox" id="i-seedEvolve"></label>
+    </div>
+
+    <div class="sp-row">
+      <label>Seed cycle (frames) <span class="val" id="v-seedInterval"></span></label>
+      <input type="range" id="i-seedInterval" min="10" max="600" step="5">
+    </div>
+
+    <h3>AS3-style translate (feOffset)</h3>
+    <p class="sp-hint">SVG turbulence has no per-octave offsets like AS3's <code>p1</code>/<code>p2</code> — this approximates it by translating the whole noise via <code>feOffset</code>. Pairs well with <em>Stitch tiles</em>.</p>
+
+    <div class="sp-row">
+      <label>Translate speed px (per frame) <span class="val" id="v-pSpeedX"></span></label>
+      <input type="range" id="i-pSpeedX" min="-3" max="3" step="0.05">
+    </div>
+
+    <div class="sp-row">
+      <label>Translate speed py (per frame) <span class="val" id="v-pSpeedY"></span></label>
+      <input type="range" id="i-pSpeedY" min="-3" max="3" step="0.05">
+    </div>
+
+    <div class="sp-actions">
+      <button class="reset" id="settingsReset">Reset</button>
+    </div>
+  </aside>
 
 </div>
 
@@ -499,6 +750,9 @@ function showMenu() {
   // Clear rainbow trail and any active pointers
   if (typeof rctx !== 'undefined') rctx.clearRect(0, 0, rainbowCanvas.width, rainbowCanvas.height);
   if (typeof pointers !== 'undefined') pointers.clear();
+  // Close the settings panel if it was left open in the game view
+  const sp = document.getElementById('settingsPanel');
+  if (sp) sp.classList.remove('open');
 }
 
 function showVideo(idx) {
@@ -723,28 +977,238 @@ window.addEventListener('orientationchange', () => {
 const pointers = new Map(); // pointerId -> { x, y, hue }
 
 // ============================================
-// FILTER ANIMATION — slow self-evolution only (no map translation)
+// FILTER ANIMATION + LIVE-TUNABLE PARAMETERS
+// All feTurbulence + feDisplacementMap settings are exposed in a settings panel
+// (long-press top-left of the game view to open). State persists in localStorage.
 // ============================================
-const turbEl = document.getElementById('rainbowTurb');
+const turbEl    = document.getElementById('rainbowTurb');
+const offsetEl  = document.getElementById('rainbowOffset');
+const dispMapEl = document.getElementById('rainbowDispMap');
 
-// Master animation loop: animates turbulence (slow self-evolution)
+const FILTER_DEFAULTS = {
+  // feTurbulence
+  turbType:     'fractalNoise', // or 'turbulence'
+  baseFreqX:    0.006,
+  baseFreqY:    0.008,
+  numOctaves:   2,
+  seed:         1,
+  stitch:       false,
+  // feDisplacementMap
+  scale:        85,
+  xChan:        'R',
+  yChan:        'G',
+  // self-evolution
+  animFreq:     true,
+  oscAmpX:      0.0008,
+  oscAmpY:      0.0008,
+  oscSpdX:      0.003,
+  oscSpdY:      0.0025,
+  seedEvolve:   true,
+  seedInterval: 120,
+  // AS3-style feOffset translate
+  pSpeedX:      0,
+  pSpeedY:      0,
+};
+
+const FILTER_STORAGE_KEY = 'vesters.filter.v1';
+function loadFilterState() {
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (!raw) return { ...FILTER_DEFAULTS };
+    return { ...FILTER_DEFAULTS, ...JSON.parse(raw) };
+  } catch (e) { return { ...FILTER_DEFAULTS }; }
+}
+function saveFilterState() {
+  try { localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterState)); } catch (e) {}
+}
+const filterState = loadFilterState();
+
+// Apply all static (non-animated) attributes to the SVG filter primitives.
+// The animation loop handles baseFrequency + seed + offset itself.
+function applyStaticFilterAttrs() {
+  turbEl.setAttribute('type', filterState.turbType);
+  turbEl.setAttribute('numOctaves', filterState.numOctaves);
+  turbEl.setAttribute('stitchTiles', filterState.stitch ? 'stitch' : 'noStitch');
+  dispMapEl.setAttribute('scale', filterState.scale);
+  dispMapEl.setAttribute('xChannelSelector', filterState.xChan);
+  dispMapEl.setAttribute('yChannelSelector', filterState.yChan);
+}
+applyStaticFilterAttrs();
+
+// Master animation loop
 let filterTime = 0;
+let pOffsetX = 0, pOffsetY = 0; // accumulated feOffset translation
 function animateFilter() {
   filterTime += 1;
+  const s = filterState;
 
-  // Slow self-evolution of the noise itself (the field shape breathes)
-  const fx = 0.006 + Math.sin(filterTime * 0.003) * 0.0008;
-  const fy = 0.008 + Math.cos(filterTime * 0.0025) * 0.0008;
+  // baseFrequency: optional sinusoidal self-evolution around the user-set mean
+  let fx = s.baseFreqX, fy = s.baseFreqY;
+  if (s.animFreq) {
+    fx = s.baseFreqX + Math.sin(filterTime * s.oscSpdX) * s.oscAmpX;
+    fy = s.baseFreqY + Math.cos(filterTime * s.oscSpdY) * s.oscAmpY;
+  }
+  // Clamp to non-negative — feTurbulence rejects negatives
+  fx = Math.max(0.00001, fx);
+  fy = Math.max(0.00001, fy);
   turbEl.setAttribute('baseFrequency', `${fx.toFixed(5)} ${fy.toFixed(5)}`);
 
-  // Slowly increment seed for continuous evolution (every ~120 frames)
-  if (filterTime % 120 === 0) {
-    turbEl.setAttribute('seed', (filterTime / 120) % 1000);
+  // Seed: either evolves on a frame interval, or stays at the user-set value
+  if (s.seedEvolve && s.seedInterval > 0 && filterTime % s.seedInterval === 0) {
+    turbEl.setAttribute('seed', (filterTime / s.seedInterval) % 1000);
+  } else if (!s.seedEvolve) {
+    turbEl.setAttribute('seed', s.seed);
   }
+
+  // feOffset: AS3-style translation of the whole noise texture
+  pOffsetX += s.pSpeedX;
+  pOffsetY += s.pSpeedY;
+  offsetEl.setAttribute('dx', pOffsetX.toFixed(2));
+  offsetEl.setAttribute('dy', pOffsetY.toFixed(2));
 
   requestAnimationFrame(animateFilter);
 }
 animateFilter();
+
+// ============================================
+// SETTINGS PANEL — bind controls to filterState
+// ============================================
+const settingsPanel    = document.getElementById('settingsPanel');
+const settingsZone     = document.getElementById('settingsZone');
+const settingsProgress = document.getElementById('settingsProgress');
+
+// Numeric inputs: [stateKey, displayDigits]
+const SLIDER_BINDINGS = [
+  ['baseFreqX', 5],
+  ['baseFreqY', 5],
+  ['octaves',   0, 'numOctaves'],
+  ['seed',      0],
+  ['scale',     0],
+  ['oscAmpX',   5],
+  ['oscAmpY',   5],
+  ['oscSpdX',   4],
+  ['oscSpdY',   4],
+  ['seedInterval', 0],
+  ['pSpeedX',   2],
+  ['pSpeedY',   2],
+];
+
+function fmt(v, digits) {
+  if (digits === 0) return String(Math.round(v));
+  return Number(v).toFixed(digits);
+}
+
+function syncControlsFromState() {
+  SLIDER_BINDINGS.forEach(([id, digits, stateKey]) => {
+    const key = stateKey || id;
+    const input = document.getElementById('i-' + id);
+    const valEl = document.getElementById('v-' + id);
+    if (!input) return;
+    input.value = filterState[key];
+    if (valEl) valEl.textContent = fmt(filterState[key], digits);
+  });
+  // Toggles
+  document.getElementById('i-stitch').checked     = !!filterState.stitch;
+  document.getElementById('i-animFreq').checked   = !!filterState.animFreq;
+  document.getElementById('i-seedEvolve').checked = !!filterState.seedEvolve;
+  // Segmented controls
+  document.querySelectorAll('.seg').forEach(seg => {
+    const key = seg.dataset.seg;
+    seg.querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.val === filterState[key]);
+    });
+  });
+}
+
+function bindSettingsControls() {
+  SLIDER_BINDINGS.forEach(([id, digits, stateKey]) => {
+    const key = stateKey || id;
+    const input = document.getElementById('i-' + id);
+    const valEl = document.getElementById('v-' + id);
+    if (!input) return;
+    input.addEventListener('input', () => {
+      const num = Number(input.value);
+      filterState[key] = num;
+      if (valEl) valEl.textContent = fmt(num, digits);
+      applyStaticFilterAttrs();
+      saveFilterState();
+    });
+  });
+
+  const bindToggle = (inputId, key) => {
+    const el = document.getElementById(inputId);
+    el.addEventListener('change', () => {
+      filterState[key] = el.checked;
+      applyStaticFilterAttrs();
+      saveFilterState();
+    });
+  };
+  bindToggle('i-stitch',     'stitch');
+  bindToggle('i-animFreq',   'animFreq');
+  bindToggle('i-seedEvolve', 'seedEvolve');
+
+  document.querySelectorAll('.seg').forEach(seg => {
+    const key = seg.dataset.seg;
+    seg.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterState[key] = btn.dataset.val;
+        seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+        applyStaticFilterAttrs();
+        saveFilterState();
+      });
+    });
+  });
+
+  document.getElementById('settingsClose').addEventListener('click', closeSettings);
+  document.getElementById('settingsReset').addEventListener('click', () => {
+    Object.assign(filterState, FILTER_DEFAULTS);
+    applyStaticFilterAttrs();
+    syncControlsFromState();
+    saveFilterState();
+  });
+}
+
+function openSettings() {
+  settingsPanel.classList.add('open');
+  settingsPanel.setAttribute('aria-hidden', 'false');
+}
+function closeSettings() {
+  settingsPanel.classList.remove('open');
+  settingsPanel.setAttribute('aria-hidden', 'true');
+}
+
+bindSettingsControls();
+syncControlsFromState();
+
+// Long-press the top-left zone (1.5s) to open the panel — same gesture pattern
+// as the exit button, mirrored. Toddler-resistant; parent-discoverable.
+const SETTINGS_HOLD_MS = 1500;
+{
+  let raf = null, startTime = 0;
+  const fill = settingsProgress.querySelector('.fill');
+  function start(e) {
+    e.preventDefault();
+    startTime = Date.now();
+    settingsProgress.classList.add('showing');
+    function tick() {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(elapsed / SETTINGS_HOLD_MS, 1);
+      fill.style.strokeDashoffset = 157 * (1 - pct);
+      if (pct < 1) raf = requestAnimationFrame(tick);
+      else { openSettings(); cleanup(); }
+    }
+    raf = requestAnimationFrame(tick);
+  }
+  function cleanup() {
+    cancelAnimationFrame(raf);
+    settingsProgress.classList.remove('showing');
+    fill.style.strokeDashoffset = 157;
+  }
+  settingsZone.addEventListener('touchstart', start, { passive: false });
+  settingsZone.addEventListener('mousedown', start);
+  ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach(ev =>
+    settingsZone.addEventListener(ev, cleanup));
+}
 
 // ============================================
 // PER-FRAME DOT DRAWING — replaces line-segment trail
