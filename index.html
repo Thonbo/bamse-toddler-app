@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Toddler Time</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  html, body { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; background: #000; font-family: 'Fredoka', 'Comic Sans MS', system-ui, sans-serif; }
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap');
+
+  :root {
+    --red: #FF1744;
+    --blue: #2962FF;
+    --yellow: #FFD600;
+    --green: #00C853;
+    --purple: #AA00FF;
+    --orange: #FF6D00;
+  }
+
+  #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+  /* ===== MENU ===== */
+  .menu { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px;
+    background: radial-gradient(circle at 20% 20%, var(--yellow) 0%, transparent 40%),
+                radial-gradient(circle at 80% 30%, var(--red) 0%, transparent 40%),
+                radial-gradient(circle at 50% 80%, var(--blue) 0%, transparent 40%),
+                radial-gradient(circle at 90% 90%, var(--green) 0%, transparent 40%),
+                #1a1a2e;
+    background-size: 200% 200%;
+    animation: bgShift 12s ease infinite;
+  }
+  @keyframes bgShift { 0%,100% { background-position: 0% 0%; } 50% { background-position: 100% 100%; } }
+
+  .title { font-size: clamp(40px, 9vw, 80px); font-weight: 700; color: white; text-shadow: 0 0 30px rgba(255,255,255,0.5), 4px 4px 0 var(--red), 8px 8px 0 var(--blue); letter-spacing: 2px; text-align: center; animation: bounce 2s ease-in-out infinite; }
+  @keyframes bounce { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: 100%; max-width: 480px; }
+  .grid .tile.game { grid-column: span 2; aspect-ratio: 2.2 / 1; }
+
+  .tile { aspect-ratio: 1; border: none; border-radius: 28px; font-size: 22px; font-weight: 700; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 8px 0 rgba(0,0,0,0.3), 0 12px 24px rgba(0,0,0,0.3); transition: transform 0.1s; position: relative; overflow: hidden; }
+  .tile:active { transform: translateY(4px); box-shadow: 0 4px 0 rgba(0,0,0,0.3), 0 6px 12px rgba(0,0,0,0.3); }
+  .tile .emoji { font-size: 56px; filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.2)); }
+  .tile.video1 { background: var(--red); }
+  .tile.video2 { background: var(--blue); }
+  .tile.video3 { background: var(--green); }
+  .tile.video4 { background: var(--purple); }
+  .tile.game { background: var(--yellow); color: #222; }
+
+  /* ===== VIDEO VIEW ===== */
+  .video-view { position: absolute; inset: 0; background: #000; display: none; }
+  .video-view.active { display: block; }
+  .video-view iframe { width: 100%; height: 100%; border: 0; }
+  /* Tap-blocker overlay so toddler taps don't hit YouTube UI */
+  .video-blocker { position: absolute; inset: 0; z-index: 5; }
+
+  /* ===== GAME VIEW ===== */
+  .game-view { position: absolute; inset: 0; display: none; background: #0a0a1a; overflow: hidden; }
+  .game-view.active { display: block; }
+  .game-canvas { position: absolute; inset: 0; }
+  .game-bg { position: absolute; inset: 0;
+    background: radial-gradient(circle at 30% 30%, rgba(255,23,68,0.4), transparent 50%),
+                radial-gradient(circle at 70% 70%, rgba(41,98,255,0.4), transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(255,214,0,0.3), transparent 60%),
+                #0a0a1a;
+  }
+
+  /* ===== EXIT BUTTON (hidden, requires long-press to exit) ===== */
+  .exit-zone { position: absolute; top: 0; right: 0; width: 80px; height: 80px; z-index: 100; }
+  .exit-progress { position: absolute; top: 12px; right: 12px; width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 101; }
+  .exit-progress.showing { opacity: 1; }
+  .exit-progress svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .exit-progress circle { fill: none; stroke: white; stroke-width: 4; }
+  .exit-progress .track { stroke: rgba(255,255,255,0.2); }
+  .exit-progress .fill { stroke-dasharray: 157; stroke-dashoffset: 157; transition: stroke-dashoffset 0.05s linear; }
+  .exit-icon { position: absolute; color: white; font-size: 22px; font-weight: 700; }
+
+  /* ===== ANIMATIONS (game taps) ===== */
+  .pop { position: absolute; pointer-events: none; font-size: 80px; animation: popOut 1.2s ease-out forwards; transform: translate(-50%, -50%); }
+  @keyframes popOut {
+    0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 1; }
+    20% { transform: translate(-50%, -50%) scale(1.4) rotate(20deg); }
+    100% { transform: translate(-50%, -50%) scale(1.8) rotate(360deg); opacity: 0; }
+  }
+  .bubble { position: absolute; pointer-events: none; border-radius: 50%; transform: translate(-50%, -50%); animation: bubbleUp 1.5s ease-out forwards; box-shadow: inset -8px -8px 16px rgba(0,0,0,0.2), inset 4px 4px 8px rgba(255,255,255,0.5); }
+  @keyframes bubbleUp {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0.9; }
+    50% { opacity: 0.9; }
+    100% { transform: translate(-50%, calc(-50% - 200px)) scale(1.3); opacity: 0; }
+  }
+  .confetti { position: absolute; pointer-events: none; width: 14px; height: 14px; transform: translate(-50%, -50%); animation: confettiFall 1.4s ease-out forwards; }
+  @keyframes confettiFall {
+    0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(720deg); opacity: 0; }
+  }
+  .firework { position: absolute; pointer-events: none; width: 8px; height: 8px; border-radius: 50%; transform: translate(-50%, -50%); animation: fireworkBurst 0.9s ease-out forwards; }
+  @keyframes fireworkBurst {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 1; box-shadow: 0 0 20px currentColor; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.3); opacity: 0; box-shadow: 0 0 40px currentColor; }
+  }
+
+  .back-btn { position: absolute; top: 12px; left: 12px; z-index: 100; width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,0.5); color: white; border: 2px solid rgba(255,255,255,0.3); font-size: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- MENU -->
+  <div class="menu" id="menu">
+    <div class="title">Bamse &amp; Kylling</div>
+    <div class="grid" id="grid">
+      <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span>Tap Game</span></button>
+    </div>
+  </div>
+
+  <!-- VIDEO VIEW -->
+  <div class="video-view" id="videoView">
+    <iframe id="ytFrame" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    <div class="video-blocker"></div>
+    <div class="exit-zone" data-exit></div>
+    <div class="exit-progress" id="exitProgress1">
+      <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
+      <span class="exit-icon">×</span>
+    </div>
+  </div>
+
+  <!-- GAME VIEW -->
+  <div class="game-view" id="gameView">
+    <div class="game-bg"></div>
+    <div class="game-canvas" id="gameCanvas"></div>
+    <div class="exit-zone" data-exit></div>
+    <div class="exit-progress" id="exitProgress2">
+      <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
+      <span class="exit-icon">×</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================
+// CONFIG — replace these YouTube IDs with your own
+// To get an ID: from https://www.youtube.com/watch?v=ABC123 the ID is "ABC123"
+// ============================================
+const VIDEOS = [
+  { id: 'Tn8Ts_f15LM', title: 'Jodlesangen', emoji: '🎵' },
+  { id: 'NLrph9gm-vw', title: 'Brum Brum',   emoji: '🚗' },
+  { id: 'yJuGOsMCywM', title: 'Okay Okay',   emoji: '🎺' },
+  { id: 'JYT8D9nMGH4', title: 'Bamses Sang', emoji: '🐻' },
+];
+
+// ============================================
+// SOUND (Web Audio — fun beeps & boops, no files needed)
+// ============================================
+let audioCtx = null;
+function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playBlip() {
+  if (!audioCtx) return;
+  const notes = [523, 587, 659, 698, 784, 880, 988, 1047]; // C major scale
+  const freq = notes[Math.floor(Math.random() * notes.length)];
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = ['sine', 'triangle', 'square'][Math.floor(Math.random() * 3)];
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(freq * 1.5, audioCtx.currentTime + 0.15);
+  gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+}
+function playMenuBlip() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(660, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.1);
+  gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+}
+
+// ============================================
+// VIEWS
+// ============================================
+const menu = document.getElementById('menu');
+const videoView = document.getElementById('videoView');
+const gameView = document.getElementById('gameView');
+const ytFrame = document.getElementById('ytFrame');
+
+function showMenu() {
+  menu.style.display = 'flex';
+  videoView.classList.remove('active');
+  gameView.classList.remove('active');
+  ytFrame.src = ''; // stop video
+}
+function showVideo(idx) {
+  initAudio();
+  const id = VIDEOS[idx].id;
+  // playlist=ID makes a single video loop; loop=1 + playlist=ID is the trick
+  ytFrame.src = `https://www.youtube.com/embed/${id}?autoplay=1&loop=1&playlist=${id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3`;
+  menu.style.display = 'none';
+  videoView.classList.add('active');
+  tryFullscreen();
+}
+function showGame() {
+  initAudio();
+  menu.style.display = 'none';
+  gameView.classList.add('active');
+  tryFullscreen();
+}
+
+// Build video tiles dynamically from VIDEOS array
+const grid = document.getElementById('grid');
+const gameBtnEl = document.getElementById('gameBtn');
+VIDEOS.forEach((v, i) => {
+  const btn = document.createElement('button');
+  btn.className = `tile video${i + 1}`;
+  btn.dataset.video = i;
+  btn.innerHTML = `<span class="emoji">${v.emoji}</span><span>${v.title}</span>`;
+  btn.addEventListener('click', () => { initAudio(); playMenuBlip(); showVideo(i); });
+  grid.insertBefore(btn, gameBtnEl);
+});
+gameBtnEl.addEventListener('click', () => { initAudio(); playMenuBlip(); showGame(); });
+
+// ============================================
+// FULLSCREEN
+// ============================================
+function tryFullscreen() {
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  // Lock orientation if supported
+  if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{});
+}
+
+// ============================================
+// EXIT — long press top-right corner for 2 seconds
+// ============================================
+const EXIT_DURATION = 2000;
+document.querySelectorAll('[data-exit]').forEach(zone => {
+  let timer = null;
+  let startTime = 0;
+  let raf = null;
+  const view = zone.closest('.video-view, .game-view');
+  const progress = view.querySelector('.exit-progress');
+  const fill = progress.querySelector('.fill');
+
+  function start(e) {
+    e.preventDefault();
+    startTime = Date.now();
+    progress.classList.add('showing');
+    function tick() {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(elapsed / EXIT_DURATION, 1);
+      fill.style.strokeDashoffset = 157 * (1 - pct);
+      if (pct < 1) raf = requestAnimationFrame(tick);
+      else { showMenu(); cleanup(); }
+    }
+    raf = requestAnimationFrame(tick);
+  }
+  function cleanup() {
+    cancelAnimationFrame(raf);
+    progress.classList.remove('showing');
+    fill.style.strokeDashoffset = 157;
+  }
+  zone.addEventListener('touchstart', start, { passive: false });
+  zone.addEventListener('mousedown', start);
+  ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach(ev => zone.addEventListener(ev, cleanup));
+});
+
+// ============================================
+// GAME — animations on tap
+// ============================================
+const canvas = document.getElementById('gameCanvas');
+const COLORS = ['#FF1744', '#2962FF', '#FFD600', '#00C853', '#AA00FF', '#FF6D00', '#00E5FF', '#F50057'];
+const EMOJIS = ['⭐', '🌟', '💫', '✨', '🎈', '🎉', '🐶', '🐱', '🐰', '🦄', '🐸', '🐵', '🦋', '🌈', '🎨', '🚀', '🍭', '🎂', '⚽', '🏀'];
+
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function spawnEffect(x, y) {
+  const type = Math.floor(Math.random() * 4);
+  if (type === 0) spawnPop(x, y);
+  else if (type === 1) spawnBubble(x, y);
+  else if (type === 2) spawnConfetti(x, y);
+  else spawnFirework(x, y);
+}
+
+function spawnPop(x, y) {
+  const el = document.createElement('div');
+  el.className = 'pop';
+  el.textContent = pickRandom(EMOJIS);
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  canvas.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+function spawnBubble(x, y) {
+  for (let i = 0; i < 5; i++) {
+    const el = document.createElement('div');
+    el.className = 'bubble';
+    const size = rand(40, 90);
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.left = (x + rand(-30, 30)) + 'px';
+    el.style.top = y + 'px';
+    el.style.background = pickRandom(COLORS);
+    el.style.animationDelay = (i * 80) + 'ms';
+    canvas.appendChild(el);
+    setTimeout(() => el.remove(), 1700);
+  }
+}
+
+function spawnConfetti(x, y) {
+  for (let i = 0; i < 18; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.background = pickRandom(COLORS);
+    el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    const angle = rand(0, Math.PI * 2);
+    const dist = rand(80, 200);
+    el.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+    el.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+    canvas.appendChild(el);
+    setTimeout(() => el.remove(), 1500);
+  }
+}
+
+function spawnFirework(x, y) {
+  const color = pickRandom(COLORS);
+  for (let i = 0; i < 16; i++) {
+    const el = document.createElement('div');
+    el.className = 'firework';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.background = color;
+    el.style.color = color;
+    const angle = (i / 16) * Math.PI * 2;
+    const dist = rand(100, 180);
+    el.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+    el.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+    canvas.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  }
+}
+
+function handleGameTap(e) {
+  // Don't fire when tapping the exit zone
+  if (e.target.closest('[data-exit]') || e.target.closest('.exit-progress')) return;
+  const touches = e.touches || [{ clientX: e.clientX, clientY: e.clientY }];
+  for (const t of touches) {
+    spawnEffect(t.clientX, t.clientY);
+  }
+  playBlip();
+}
+
+gameView.addEventListener('touchstart', handleGameTap, { passive: true });
+gameView.addEventListener('mousedown', handleGameTap);
+
+// ============================================
+// PREVENT ACCIDENTAL EXITS
+// ============================================
+// Prevent context menu (long press menu)
+document.addEventListener('contextmenu', e => e.preventDefault());
+// Prevent pinch zoom
+document.addEventListener('gesturestart', e => e.preventDefault());
+// Prevent pull-to-refresh
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+// Wake lock (keep screen on)
+async function keepAwake() {
+  try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+document.addEventListener('click', keepAwake, { once: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+</script>
+</body>
+</html>
