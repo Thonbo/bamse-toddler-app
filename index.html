@@ -372,9 +372,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v15 · Tap to play</span>
+      <span class="sub">v16 · Tap to play</span>
     </h1>
-    <div class="version-badge">v15</div>
+    <div class="version-badge">v16</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -399,7 +399,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="exit-icon">×</span>
     </div>
-    <div class="game-version-badge">v15</div>
+    <div class="game-version-badge">v16</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -485,99 +485,17 @@ const ytFrame = document.getElementById('ytFrame');
 const paintLayer = document.getElementById('paintLayer');
 
 // ============================================
-// YOUTUBE IFRAME API — for sequential video playback (advances to next video on end)
+// YOUTUBE PLAYBACK — uses the simple iframe playlist parameter to auto-advance.
+// The first video plays from the URL path; the comma-separated `playlist=` list
+// plays after it. We rotate the order each time so any starting tile chains
+// through all the others before the loop wraps.
 // ============================================
-let ytPlayer = null;
-let ytApiReady = false;
-let pendingVideoIdx = null;
-let currentVideoIdx = 0;
-
-// Define the callback BEFORE injecting the script — YouTube calls window.onYouTubeIframeAPIReady
-window.onYouTubeIframeAPIReady = function () {
-  console.log('[YT] onYouTubeIframeAPIReady called');
-  ytApiReady = true;
-  window.__ytApiReady = true;
-  if (pendingVideoIdx !== null) {
-    const i = pendingVideoIdx;
-    pendingVideoIdx = null;
-    showVideo(i);
-  }
-};
-
-// Load the YouTube IFrame API
-const ytScriptTag = document.createElement('script');
-ytScriptTag.src = 'https://www.youtube.com/iframe_api';
-document.head.appendChild(ytScriptTag);
-
-// Fallback: if YT.Player is already on window (e.g., the script loaded in a previous
-// service-worker session and our callback got missed), poll briefly for it.
-const ytReadyPoll = setInterval(() => {
-  if (window.YT && window.YT.Player && !ytApiReady) {
-    console.log('[YT] poll: YT.Player ready, marking apiReady');
-    ytApiReady = true;
-    window.__ytApiReady = true;
-    clearInterval(ytReadyPoll);
-    if (pendingVideoIdx !== null) {
-      const i = pendingVideoIdx;
-      pendingVideoIdx = null;
-      showVideo(i);
-    }
-  } else if (ytApiReady) {
-    clearInterval(ytReadyPoll);
-  }
-}, 200);
-setTimeout(() => clearInterval(ytReadyPoll), 10000);
-
-function createOrLoadPlayer(idx) {
-  currentVideoIdx = idx;
-  const id = VIDEOS[idx].id;
-  console.log('[YT] createOrLoadPlayer idx=' + idx + ' id=' + id + ' existing=' + !!ytPlayer);
-  try {
-    if (!ytPlayer) {
-      const target = document.getElementById('ytFrame');
-      console.log('[YT] target element:', target?.tagName, 'parent:', target?.parentElement?.id);
-      ytPlayer = new YT.Player('ytFrame', {
-        videoId: id,
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          modestbranding: 1,
-          rel: 0,
-          playsinline: 1,
-          iv_load_policy: 3,
-          fs: 0,
-          disablekb: 1,
-        },
-        events: {
-          onReady: (e) => { console.log('[YT] onReady'); e.target.playVideo(); },
-          onError: (e) => { console.log('[YT] onError code=' + e.data); },
-          onStateChange: (e) => {
-            console.log('[YT] state=' + e.data);
-            if (e.data === YT.PlayerState.ENDED) {
-              const next = (currentVideoIdx + 1) % VIDEOS.length;
-              currentVideoIdx = next;
-              ytPlayer.loadVideoById(VIDEOS[next].id);
-            }
-          },
-        },
-      });
-      console.log('[YT] new YT.Player constructed, returned:', !!ytPlayer);
-      // Expose for debugging/testing
-      window.__ytPlayer = ytPlayer;
-    } else {
-      ytPlayer.loadVideoById(id);
-    }
-  } catch (err) {
-    console.error('[YT] createOrLoadPlayer error:', err.message);
-  }
-}
-
 function showMenu() {
   menu.style.display = 'flex';
   videoView.classList.remove('active');
   gameView.classList.remove('active');
   paintLayer.classList.remove('active');
-  if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+  ytFrame.src = 'about:blank';
   // Clear rainbow trail and any active pointers
   if (typeof rctx !== 'undefined') rctx.clearRect(0, 0, rainbowCanvas.width, rainbowCanvas.height);
   if (typeof pointers !== 'undefined') pointers.clear();
@@ -585,19 +503,30 @@ function showMenu() {
 
 function showVideo(idx) {
   initAudio();
-  if (!ytApiReady) {
-    pendingVideoIdx = idx;
-    // Show the view and the paint layer immediately; the player will appear once API loads
-    menu.style.display = 'none';
-    videoView.classList.add('active');
-    paintLayer.classList.add('active');
-    tryFullscreen();
-    return;
+  const startId = VIDEOS[idx].id;
+  // Build the rest of the playlist starting after the chosen video, wrapping around
+  const rest = [];
+  for (let i = 1; i < VIDEOS.length; i++) {
+    rest.push(VIDEOS[(idx + i) % VIDEOS.length].id);
   }
-  createOrLoadPlayer(idx);
+  // After all videos play once, loop back to the start of the playlist
+  // (loop=1 + playlist=... makes the iframe cycle through them again)
+  const params = new URLSearchParams({
+    autoplay: '1',
+    controls: '0',
+    modestbranding: '1',
+    rel: '0',
+    playsinline: '1',
+    iv_load_policy: '3',
+    fs: '0',
+    disablekb: '1',
+    loop: '1',
+    playlist: rest.join(','),
+  });
+  ytFrame.src = `https://www.youtube.com/embed/${startId}?${params.toString()}`;
   menu.style.display = 'none';
   videoView.classList.add('active');
-  paintLayer.classList.add('active'); // paint overlay ALWAYS active during video
+  paintLayer.classList.add('active'); // paint overlay always active during video
   tryFullscreen();
 }
 
