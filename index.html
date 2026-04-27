@@ -499,9 +499,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v17 · Tap to play</span>
+      <span class="sub">v18 · Tap to play</span>
     </h1>
-    <div class="version-badge">v17</div>
+    <div class="version-badge">v18</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -532,7 +532,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v17</div>
+    <div class="game-version-badge">v18</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -661,18 +661,51 @@
       <input type="range" id="i-seedInterval" min="10" max="600" step="5">
     </div>
 
-    <h3>mapPoint translation (feOffset)</h3>
-    <p class="sp-hint">SVG/JS has no <code>mapPoint</code> property on the displacement filter — this reproduces it by translating the displacement map via <code>feOffset</code> each frame. Equivalent to animating <code>mapPoint.x</code> / <code>mapPoint.y</code> in AS3. Pairs well with <em>Stitch tiles</em> to avoid edge artifacts.</p>
+    <h3>mapPoint (feOffset)</h3>
+    <p class="sp-hint">SVG/JS has no <code>mapPoint</code> property on the displacement filter — this reproduces it by translating the displacement map via <code>feOffset</code>. Equivalent to AS3 <code>DisplacementMapFilter.mapPoint</code>. Pairs well with <em>Stitch tiles</em> to avoid edge artifacts.</p>
 
     <div class="sp-row">
-      <label>mapPoint.x speed (per frame) <span class="val" id="v-pSpeedX"></span></label>
+      <label>mapPoint.x drift (per frame) <span class="val" id="v-pSpeedX"></span></label>
       <input type="range" id="i-pSpeedX" min="-3" max="3" step="0.05">
     </div>
 
     <div class="sp-row">
-      <label>mapPoint.y speed (per frame) <span class="val" id="v-pSpeedY"></span></label>
+      <label>mapPoint.y drift (per frame) <span class="val" id="v-pSpeedY"></span></label>
       <input type="range" id="i-pSpeedY" min="-3" max="3" step="0.05">
     </div>
+
+    <h3>Gyroscope drive (mapPoint ← device tilt)</h3>
+    <p class="sp-hint">Drives <code>mapPoint</code> directly from device orientation: <code>gamma</code> (left-right tilt) → x, <code>beta</code> (front-back tilt) → y. Overrides the constant drift while enabled. Tap <em>Calibrate</em> to make the current pose the zero-point.</p>
+
+    <div class="sp-row toggle">
+      <label>Enable gyroscope <input type="checkbox" id="i-gyroEnabled"></label>
+    </div>
+
+    <p class="sp-hint" id="gyroStatus" style="margin-top:-6px">Status: idle</p>
+
+    <div class="sp-row">
+      <label>Tilt sensitivity X <span class="val" id="v-gyroSensX"></span></label>
+      <input type="range" id="i-gyroSensX" min="0" max="10" step="0.1">
+    </div>
+
+    <div class="sp-row">
+      <label>Tilt sensitivity Y <span class="val" id="v-gyroSensY"></span></label>
+      <input type="range" id="i-gyroSensY" min="0" max="10" step="0.1">
+    </div>
+
+    <div class="sp-row toggle">
+      <label>Invert X <input type="checkbox" id="i-gyroInvX"></label>
+    </div>
+
+    <div class="sp-row toggle">
+      <label>Invert Y <input type="checkbox" id="i-gyroInvY"></label>
+    </div>
+
+    <div class="sp-row">
+      <button class="reset" id="gyroCalibrate" style="width:100%;border:none;padding:12px;border-radius:999px;font-family:inherit;font-size:13px;font-variation-settings:'opsz' 13,'wght' 700;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;background:rgba(255,255,255,0.1);color:inherit;">Calibrate (zero current tilt)</button>
+    </div>
+
+    <p class="sp-hint">Live: <span id="gyroReadout" style="font-family:monospace;color:var(--m3-primary-container)">—</span></p>
 
     <div class="sp-actions">
       <button class="reset" id="settingsReset">Reset</button>
@@ -1008,6 +1041,14 @@ const FILTER_DEFAULTS = {
   // mapPoint-style feOffset translate (animates feOffset dx/dy each frame)
   pSpeedX:      0,
   pSpeedY:      0,
+  // Gyroscope-driven mapPoint (overrides drift while enabled)
+  gyroEnabled:  false,
+  gyroSensX:    2.0,   // gamma (deg) → mapPoint.x px multiplier
+  gyroSensY:    2.0,   // beta  (deg) → mapPoint.y px multiplier
+  gyroInvX:     false,
+  gyroInvY:     false,
+  gyroCalGamma: 0,     // calibration: subtract from gamma
+  gyroCalBeta:  0,     // calibration: subtract from beta
 };
 
 const FILTER_STORAGE_KEY = 'vesters.filter.v1';
@@ -1035,9 +1076,57 @@ function applyStaticFilterAttrs() {
 }
 applyStaticFilterAttrs();
 
+// ============================================
+// DEVICE ORIENTATION — drives mapPoint when filterState.gyroEnabled
+// AS3 DisplacementMapFilter.mapPoint == feOffset dx/dy here
+// ============================================
+let lastGamma = 0; // -90..90  (left-right tilt)
+let lastBeta  = 0; // -180..180 (front-back tilt)
+let gyroLive  = false; // true once at least one event has arrived
+let gyroListenerAttached = false;
+
+function handleDeviceOrientation(e) {
+  if (e.gamma === null || e.beta === null) return;
+  lastGamma = e.gamma;
+  lastBeta  = e.beta;
+  gyroLive  = true;
+  const r = document.getElementById('gyroReadout');
+  if (r) r.textContent = `β ${lastBeta.toFixed(0)}°  γ ${lastGamma.toFixed(0)}°`;
+}
+
+function attachGyroListener() {
+  if (gyroListenerAttached) return;
+  window.addEventListener('deviceorientation', handleDeviceOrientation);
+  gyroListenerAttached = true;
+}
+
+// iOS 13+ requires explicit user-gesture permission. Other platforms grant implicitly.
+async function requestGyroPermission() {
+  const status = document.getElementById('gyroStatus');
+  if (typeof DeviceOrientationEvent === 'undefined') {
+    if (status) status.textContent = 'Status: device orientation not supported';
+    return false;
+  }
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      const result = await DeviceOrientationEvent.requestPermission();
+      if (result !== 'granted') {
+        if (status) status.textContent = 'Status: permission denied';
+        return false;
+      }
+    } catch (err) {
+      if (status) status.textContent = 'Status: permission request failed';
+      return false;
+    }
+  }
+  attachGyroListener();
+  if (status) status.textContent = 'Status: listening';
+  return true;
+}
+
 // Master animation loop
 let filterTime = 0;
-let pOffsetX = 0, pOffsetY = 0; // accumulated feOffset translation
+let pOffsetX = 0, pOffsetY = 0; // current feOffset translation
 function animateFilter() {
   filterTime += 1;
   const s = filterState;
@@ -1060,15 +1149,31 @@ function animateFilter() {
     turbEl.setAttribute('seed', s.seed);
   }
 
-  // feOffset: AS3-style translation of the whole noise texture
-  pOffsetX += s.pSpeedX;
-  pOffsetY += s.pSpeedY;
+  // mapPoint translation: gyro overrides constant drift when enabled & live
+  if (s.gyroEnabled && gyroLive) {
+    const gx = (lastGamma - s.gyroCalGamma) * s.gyroSensX * (s.gyroInvX ? -1 : 1);
+    const gy = (lastBeta  - s.gyroCalBeta ) * s.gyroSensY * (s.gyroInvY ? -1 : 1);
+    pOffsetX = gx;
+    pOffsetY = gy;
+  } else {
+    pOffsetX += s.pSpeedX;
+    pOffsetY += s.pSpeedY;
+  }
   offsetEl.setAttribute('dx', pOffsetX.toFixed(2));
   offsetEl.setAttribute('dy', pOffsetY.toFixed(2));
 
   requestAnimationFrame(animateFilter);
 }
 animateFilter();
+
+// If the panel state already had gyro enabled from a previous session, attach
+// the listener now (no permission prompt needed on Android — implicit grant).
+// On iOS the toggle will re-prompt on next user interaction with the toggle.
+if (filterState.gyroEnabled &&
+    typeof DeviceOrientationEvent !== 'undefined' &&
+    typeof DeviceOrientationEvent.requestPermission !== 'function') {
+  attachGyroListener();
+}
 
 // ============================================
 // SETTINGS PANEL — bind controls to filterState
@@ -1091,6 +1196,8 @@ const SLIDER_BINDINGS = [
   ['seedInterval', 0],
   ['pSpeedX',   2],
   ['pSpeedY',   2],
+  ['gyroSensX', 1],
+  ['gyroSensY', 1],
 ];
 
 function fmt(v, digits) {
@@ -1108,9 +1215,12 @@ function syncControlsFromState() {
     if (valEl) valEl.textContent = fmt(filterState[key], digits);
   });
   // Toggles
-  document.getElementById('i-stitch').checked     = !!filterState.stitch;
-  document.getElementById('i-animFreq').checked   = !!filterState.animFreq;
-  document.getElementById('i-seedEvolve').checked = !!filterState.seedEvolve;
+  document.getElementById('i-stitch').checked      = !!filterState.stitch;
+  document.getElementById('i-animFreq').checked    = !!filterState.animFreq;
+  document.getElementById('i-seedEvolve').checked  = !!filterState.seedEvolve;
+  document.getElementById('i-gyroEnabled').checked = !!filterState.gyroEnabled;
+  document.getElementById('i-gyroInvX').checked    = !!filterState.gyroInvX;
+  document.getElementById('i-gyroInvY').checked    = !!filterState.gyroInvY;
   // Segmented controls
   document.querySelectorAll('.seg').forEach(seg => {
     const key = seg.dataset.seg;
@@ -1146,6 +1256,42 @@ function bindSettingsControls() {
   bindToggle('i-stitch',     'stitch');
   bindToggle('i-animFreq',   'animFreq');
   bindToggle('i-seedEvolve', 'seedEvolve');
+  bindToggle('i-gyroInvX',   'gyroInvX');
+  bindToggle('i-gyroInvY',   'gyroInvY');
+
+  // Gyro enable: must request permission inside the user-gesture handler (iOS).
+  const gyroToggle = document.getElementById('i-gyroEnabled');
+  gyroToggle.addEventListener('change', async () => {
+    if (gyroToggle.checked) {
+      const ok = await requestGyroPermission();
+      if (!ok) {
+        gyroToggle.checked = false;
+        filterState.gyroEnabled = false;
+        saveFilterState();
+        return;
+      }
+      filterState.gyroEnabled = true;
+    } else {
+      filterState.gyroEnabled = false;
+      const status = document.getElementById('gyroStatus');
+      if (status) status.textContent = 'Status: idle';
+    }
+    saveFilterState();
+  });
+
+  // Calibrate: snapshot current orientation as the zero-point.
+  document.getElementById('gyroCalibrate').addEventListener('click', () => {
+    if (!gyroLive) {
+      const status = document.getElementById('gyroStatus');
+      if (status) status.textContent = 'Status: enable gyroscope first';
+      return;
+    }
+    filterState.gyroCalGamma = lastGamma;
+    filterState.gyroCalBeta  = lastBeta;
+    saveFilterState();
+    const status = document.getElementById('gyroStatus');
+    if (status) status.textContent = `Status: calibrated (β ${lastBeta.toFixed(0)}°, γ ${lastGamma.toFixed(0)}°)`;
+  });
 
   document.querySelectorAll('.seg').forEach(seg => {
     const key = seg.dataset.seg;
