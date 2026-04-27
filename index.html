@@ -350,7 +350,13 @@
   }
 
   /* ===== PHYSICS GAME ===== */
-  .phys-view { position: absolute; inset: 0; display: none; background: #1a1228; overflow: hidden; touch-action: none; }
+  .phys-view {
+    position: absolute; inset: 0; display: none; overflow: hidden; touch-action: none;
+    background:
+      radial-gradient(circle at 20% 15%, rgba(255,179,0,0.18), transparent 50%),
+      radial-gradient(circle at 80% 85%, rgba(41,98,255,0.22),  transparent 55%),
+      linear-gradient(160deg, #2a1f44 0%, #1a1228 60%, #0d0a18 100%);
+  }
   .phys-view.active { display: block; }
   .phys-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
@@ -665,9 +671,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v27 · Tap to play</span>
+      <span class="sub">v28 · Tap to play</span>
     </h1>
-    <div class="version-badge">v27</div>
+    <div class="version-badge">v28</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
       <button class="tile physics" id="physicsBtn"><span class="emoji">🧱</span><span class="label">Klodser</span></button>
@@ -690,14 +696,14 @@
   <div class="phys-view" id="physicsView">
     <canvas class="phys-canvas" id="physicsCanvas"></canvas>
     <button class="game-back" id="physicsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v27</div>
+    <div class="game-version-badge">v28</div>
   </div>
 
   <!-- SOUNDS VIEW — 2x5 grid of arcade buttons, animal sounds + popups -->
   <div class="sounds-view" id="soundsView">
     <div class="sounds-grid" id="soundsGrid"></div>
     <button class="game-back" id="soundsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v27</div>
+    <div class="game-version-badge">v28</div>
   </div>
 
   <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
@@ -714,7 +720,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v27</div>
+    <div class="game-version-badge">v28</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -1839,6 +1845,8 @@ const physCtx       = physicsCanvas.getContext('2d');
 
 let physEngine = null, physRunner = null, physRaf = null, physBodies = [];
 let physShakeHandler = null;
+let physResizeHandler = null;
+const physMoveHistory = []; // [{t, x, y}, ...] for flick velocity
 const PHYS_ITEMS = [
   { emoji: '🧱', kind: 'box',  size: 70 },
   { emoji: '🟦', kind: 'box',  size: 70 },
@@ -1865,25 +1873,44 @@ function showPhysics() {
   menu.style.display = 'none';
   physicsView.classList.add('active');
   tryFullscreen();
+  // Fullscreen + landscape lock change innerWidth/innerHeight asynchronously.
+  // Build once now, then re-fit the canvas (and reposition walls) when the
+  // viewport actually settles.
   buildPhysicsScene();
   attachPhysicsShake();
   physRender();
+  physResizeHandler = () => {
+    if (!physEngine) return;
+    resizePhysicsCanvas();
+    // Move the walls to the new viewport edges
+    const w = window.innerWidth, h = window.innerHeight;
+    let i = 0;
+    Matter.Composite.allBodies(physEngine.world).forEach(b => {
+      if (b.label !== 'wall') return;
+      const positions = [
+        [w / 2, -25], [w / 2, h + 25], [-25, h / 2], [w + 25, h / 2],
+      ];
+      if (positions[i]) Matter.Body.setPosition(b, { x: positions[i][0], y: positions[i][1] });
+      i++;
+    });
+  };
+  window.addEventListener('resize', physResizeHandler);
+  // Run once after a short delay to catch the post-fullscreen viewport
+  setTimeout(physResizeHandler, 200);
+  setTimeout(physResizeHandler, 600);
 }
 
 function buildPhysicsScene() {
   // Size canvas to viewport (DPR-aware, like the rainbow canvas)
-  const dpr = window.devicePixelRatio || 1;
-  const w = window.innerWidth, h = window.innerHeight;
-  physicsCanvas.width = w * dpr; physicsCanvas.height = h * dpr;
-  physicsCanvas.style.width = w + 'px'; physicsCanvas.style.height = h + 'px';
-  physCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  resizePhysicsCanvas();
 
   physEngine = Matter.Engine.create({ gravity: { x: 0, y: 1, scale: 0.0012 } });
   physRunner = Matter.Runner.create();
   Matter.Runner.run(physRunner, physEngine);
 
   // Walls — keep things on-screen
-  const wallOpts = { isStatic: true, restitution: 0.6, render: { visible: false } };
+  const w = window.innerWidth, h = window.innerHeight;
+  const wallOpts = { isStatic: true, restitution: 0.6, label: 'wall', render: { visible: false } };
   Matter.Composite.add(physEngine.world, [
     Matter.Bodies.rectangle(w / 2, -25,    w + 50, 50, wallOpts),
     Matter.Bodies.rectangle(w / 2, h + 25, w + 50, 50, wallOpts),
@@ -1909,22 +1936,55 @@ function buildPhysicsScene() {
     Matter.Composite.add(physEngine.world, body);
   });
 
-  // Drag with the finger (mouse constraint translated to touch)
+  // Drag with the finger (mouse constraint translated to touch). On release,
+  // we read the recent pointer history to compute a flick velocity and apply
+  // it to the body — Matter.MouseConstraint zeros velocity on release by
+  // default, which kills the natural throw-feel.
   const mouse = Matter.Mouse.create(physicsCanvas);
   const mouseConstraint = Matter.MouseConstraint.create(physEngine, {
     mouse: mouse,
-    constraint: { stiffness: 0.2, render: { visible: false } },
+    constraint: { stiffness: 0.2, damping: 0.1, render: { visible: false } },
   });
   Matter.Composite.add(physEngine.world, mouseConstraint);
   physEngine.mouseConstraint = mouseConstraint;
+
+  Matter.Events.on(mouseConstraint, 'mousemove', (e) => {
+    physMoveHistory.push({ t: performance.now(), x: e.mouse.position.x, y: e.mouse.position.y });
+    // Keep only the last ~150ms of samples
+    const cutoff = performance.now() - 150;
+    while (physMoveHistory.length && physMoveHistory[0].t < cutoff) physMoveHistory.shift();
+  });
+  Matter.Events.on(mouseConstraint, 'enddrag', (e) => {
+    const body = e.body;
+    if (!body || physMoveHistory.length < 2) { physMoveHistory.length = 0; return; }
+    const first = physMoveHistory[0];
+    const last  = physMoveHistory[physMoveHistory.length - 1];
+    const dt = Math.max(1, last.t - first.t); // ms
+    // Convert px/ms → px/step (Matter steps at ~16.67 ms). 0.6 = throw scaler
+    const k = 16.67 * 0.6;
+    const vx = ((last.x - first.x) / dt) * k;
+    const vy = ((last.y - first.y) / dt) * k;
+    Matter.Body.setVelocity(body, { x: vx, y: vy });
+    // Spin too — proportional to throw magnitude, just a little
+    Matter.Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.4 + (vx * 0.001));
+    physMoveHistory.length = 0;
+  });
+}
+
+function resizePhysicsCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth, h = window.innerHeight;
+  physicsCanvas.width  = w * dpr;
+  physicsCanvas.height = h * dpr;
+  physicsCanvas.style.width  = w + 'px';
+  physicsCanvas.style.height = h + 'px';
+  physCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 function physRender() {
   const w = window.innerWidth, h = window.innerHeight;
+  // Full clear — the .phys-view background paints behind. No tint pass.
   physCtx.clearRect(0, 0, w, h);
-  // Soft starry background
-  physCtx.fillStyle = 'rgba(255,255,255,0.05)';
-  physCtx.fillRect(0, 0, w, h);
 
   for (const body of physBodies) {
     const { x, y } = body.position;
@@ -1934,6 +1994,10 @@ function physRender() {
     physCtx.font = `${body.plugin.size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
     physCtx.textAlign = 'center';
     physCtx.textBaseline = 'middle';
+    // Soft drop shadow so toys pop against the dark background
+    physCtx.shadowColor = 'rgba(0,0,0,0.55)';
+    physCtx.shadowBlur = 14;
+    physCtx.shadowOffsetY = 4;
     physCtx.fillText(body.plugin.emoji, 0, 0);
     physCtx.restore();
   }
@@ -1972,7 +2036,8 @@ function attachPhysicsShake() {
 function closePhysics() {
   if (!physicsView.classList.contains('active') && !physEngine) return;
   physicsView.classList.remove('active');
-  if (physShakeHandler) { window.removeEventListener('devicemotion', physShakeHandler); physShakeHandler = null; }
+  if (physShakeHandler)  { window.removeEventListener('devicemotion', physShakeHandler); physShakeHandler = null; }
+  if (physResizeHandler) { window.removeEventListener('resize',       physResizeHandler); physResizeHandler = null; }
   if (physRaf) { cancelAnimationFrame(physRaf); physRaf = null; }
   if (physRunner && physEngine) { Matter.Runner.stop(physRunner); }
   if (physEngine) {
@@ -1980,6 +2045,7 @@ function closePhysics() {
     Matter.Engine.clear(physEngine);
   }
   physRunner = null; physEngine = null; physBodies = [];
+  physMoveHistory.length = 0;
   physCtx.clearRect(0, 0, physicsCanvas.width, physicsCanvas.height);
 }
 
