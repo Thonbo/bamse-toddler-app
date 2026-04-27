@@ -281,6 +281,22 @@
     z-index: 50;
   }
 
+  /* FPS badge — bottom-right of the paint layer (visible during video + game) */
+  .fps-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-family: 'Roboto Flex', monospace;
+    font-variation-settings: 'opsz' 10, 'wght' 500;
+    font-size: 10px;
+    color: white;
+    opacity: 0.55;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    z-index: 50;
+    text-shadow: 0 0 4px rgba(0,0,0,0.6);
+  }
+
   /* ===== VIDEO VIEW ===== */
   .video-view { position: absolute; inset: 0; background: #000; display: none; }
   .video-view.active { display: block; }
@@ -499,9 +515,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v17 · Tap to play</span>
+      <span class="sub">v20 · Tap to play</span>
     </h1>
-    <div class="version-badge">v17</div>
+    <div class="version-badge">v20</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -532,7 +548,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v17</div>
+    <div class="game-version-badge">v20</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -552,6 +568,7 @@
     </svg>
     <canvas class="rainbow-canvas" id="rainbowCanvas"></canvas>
     <div class="game-canvas" id="gameCanvas"></div>
+    <div class="fps-badge" id="fpsBadge">— fps</div>
   </div>
 
   <!-- Install prompt (M3 snackbar) -->
@@ -661,18 +678,51 @@
       <input type="range" id="i-seedInterval" min="10" max="600" step="5">
     </div>
 
-    <h3>mapPoint translation (feOffset)</h3>
-    <p class="sp-hint">SVG/JS has no <code>mapPoint</code> property on the displacement filter — this reproduces it by translating the displacement map via <code>feOffset</code> each frame. Equivalent to animating <code>mapPoint.x</code> / <code>mapPoint.y</code> in AS3. Pairs well with <em>Stitch tiles</em> to avoid edge artifacts.</p>
+    <h3>mapPoint (feOffset)</h3>
+    <p class="sp-hint">SVG/JS has no <code>mapPoint</code> property on the displacement filter — this reproduces it by translating the displacement map via <code>feOffset</code>. Equivalent to AS3 <code>DisplacementMapFilter.mapPoint</code>. Pairs well with <em>Stitch tiles</em> to avoid edge artifacts.</p>
 
     <div class="sp-row">
-      <label>mapPoint.x speed (per frame) <span class="val" id="v-pSpeedX"></span></label>
+      <label>mapPoint.x drift (per frame) <span class="val" id="v-pSpeedX"></span></label>
       <input type="range" id="i-pSpeedX" min="-3" max="3" step="0.05">
     </div>
 
     <div class="sp-row">
-      <label>mapPoint.y speed (per frame) <span class="val" id="v-pSpeedY"></span></label>
+      <label>mapPoint.y drift (per frame) <span class="val" id="v-pSpeedY"></span></label>
       <input type="range" id="i-pSpeedY" min="-3" max="3" step="0.05">
     </div>
+
+    <h3>Gyroscope drive (mapPoint ← device tilt)</h3>
+    <p class="sp-hint">Drives <code>mapPoint</code> directly from device orientation: <code>gamma</code> (left-right tilt) → x, <code>beta</code> (front-back tilt) → y. Overrides the constant drift while enabled. Tap <em>Calibrate</em> to make the current pose the zero-point.</p>
+
+    <div class="sp-row toggle">
+      <label>Enable gyroscope <input type="checkbox" id="i-gyroEnabled"></label>
+    </div>
+
+    <p class="sp-hint" id="gyroStatus" style="margin-top:-6px">Status: idle</p>
+
+    <div class="sp-row">
+      <label>Tilt sensitivity X <span class="val" id="v-gyroSensX"></span></label>
+      <input type="range" id="i-gyroSensX" min="0" max="10" step="0.1">
+    </div>
+
+    <div class="sp-row">
+      <label>Tilt sensitivity Y <span class="val" id="v-gyroSensY"></span></label>
+      <input type="range" id="i-gyroSensY" min="0" max="10" step="0.1">
+    </div>
+
+    <div class="sp-row toggle">
+      <label>Invert X <input type="checkbox" id="i-gyroInvX"></label>
+    </div>
+
+    <div class="sp-row toggle">
+      <label>Invert Y <input type="checkbox" id="i-gyroInvY"></label>
+    </div>
+
+    <div class="sp-row">
+      <button class="reset" id="gyroCalibrate" style="width:100%;border:none;padding:12px;border-radius:999px;font-family:inherit;font-size:13px;font-variation-settings:'opsz' 13,'wght' 700;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;background:rgba(255,255,255,0.1);color:inherit;">Calibrate (zero current tilt)</button>
+    </div>
+
+    <p class="sp-hint">Live: <span id="gyroReadout" style="font-family:monospace;color:var(--m3-primary-container)">—</span></p>
 
     <div class="sp-actions">
       <button class="reset" id="settingsReset">Reset</button>
@@ -1003,11 +1053,21 @@ const FILTER_DEFAULTS = {
   oscAmpY:      0.0008,
   oscSpdX:      0.003,
   oscSpdY:      0.0025,
-  seedEvolve:   true,
+  seedEvolve:   false,
   seedInterval: 120,
-  // mapPoint-style feOffset translate (animates feOffset dx/dy each frame)
-  pSpeedX:      0,
-  pSpeedY:      0,
+  // mapPoint-style feOffset translate (animates feOffset dx/dy each frame).
+  // Small non-zero defaults give continuous, never-repeating evolution by
+  // sliding through the noise field — smoother than seed-snapping.
+  pSpeedX:      0.4,
+  pSpeedY:      0.3,
+  // Gyroscope-driven mapPoint (overrides drift while enabled)
+  gyroEnabled:  false,
+  gyroSensX:    2.0,   // gamma (deg) → mapPoint.x px multiplier
+  gyroSensY:    2.0,   // beta  (deg) → mapPoint.y px multiplier
+  gyroInvX:     false,
+  gyroInvY:     false,
+  gyroCalGamma: 0,     // calibration: subtract from gamma
+  gyroCalBeta:  0,     // calibration: subtract from beta
 };
 
 const FILTER_STORAGE_KEY = 'vesters.filter.v1';
@@ -1035,9 +1095,57 @@ function applyStaticFilterAttrs() {
 }
 applyStaticFilterAttrs();
 
+// ============================================
+// DEVICE ORIENTATION — drives mapPoint when filterState.gyroEnabled
+// AS3 DisplacementMapFilter.mapPoint == feOffset dx/dy here
+// ============================================
+let lastGamma = 0; // -90..90  (left-right tilt)
+let lastBeta  = 0; // -180..180 (front-back tilt)
+let gyroLive  = false; // true once at least one event has arrived
+let gyroListenerAttached = false;
+
+function handleDeviceOrientation(e) {
+  if (e.gamma === null || e.beta === null) return;
+  lastGamma = e.gamma;
+  lastBeta  = e.beta;
+  gyroLive  = true;
+  const r = document.getElementById('gyroReadout');
+  if (r) r.textContent = `β ${lastBeta.toFixed(0)}°  γ ${lastGamma.toFixed(0)}°`;
+}
+
+function attachGyroListener() {
+  if (gyroListenerAttached) return;
+  window.addEventListener('deviceorientation', handleDeviceOrientation);
+  gyroListenerAttached = true;
+}
+
+// iOS 13+ requires explicit user-gesture permission. Other platforms grant implicitly.
+async function requestGyroPermission() {
+  const status = document.getElementById('gyroStatus');
+  if (typeof DeviceOrientationEvent === 'undefined') {
+    if (status) status.textContent = 'Status: device orientation not supported';
+    return false;
+  }
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      const result = await DeviceOrientationEvent.requestPermission();
+      if (result !== 'granted') {
+        if (status) status.textContent = 'Status: permission denied';
+        return false;
+      }
+    } catch (err) {
+      if (status) status.textContent = 'Status: permission request failed';
+      return false;
+    }
+  }
+  attachGyroListener();
+  if (status) status.textContent = 'Status: listening';
+  return true;
+}
+
 // Master animation loop
 let filterTime = 0;
-let pOffsetX = 0, pOffsetY = 0; // accumulated feOffset translation
+let pOffsetX = 0, pOffsetY = 0; // current feOffset translation
 function animateFilter() {
   filterTime += 1;
   const s = filterState;
@@ -1060,15 +1168,31 @@ function animateFilter() {
     turbEl.setAttribute('seed', s.seed);
   }
 
-  // feOffset: AS3-style translation of the whole noise texture
-  pOffsetX += s.pSpeedX;
-  pOffsetY += s.pSpeedY;
+  // mapPoint translation: gyro overrides constant drift when enabled & live
+  if (s.gyroEnabled && gyroLive) {
+    const gx = (lastGamma - s.gyroCalGamma) * s.gyroSensX * (s.gyroInvX ? -1 : 1);
+    const gy = (lastBeta  - s.gyroCalBeta ) * s.gyroSensY * (s.gyroInvY ? -1 : 1);
+    pOffsetX = gx;
+    pOffsetY = gy;
+  } else {
+    pOffsetX += s.pSpeedX;
+    pOffsetY += s.pSpeedY;
+  }
   offsetEl.setAttribute('dx', pOffsetX.toFixed(2));
   offsetEl.setAttribute('dy', pOffsetY.toFixed(2));
 
   requestAnimationFrame(animateFilter);
 }
 animateFilter();
+
+// If the panel state already had gyro enabled from a previous session, attach
+// the listener now (no permission prompt needed on Android — implicit grant).
+// On iOS the toggle will re-prompt on next user interaction with the toggle.
+if (filterState.gyroEnabled &&
+    typeof DeviceOrientationEvent !== 'undefined' &&
+    typeof DeviceOrientationEvent.requestPermission !== 'function') {
+  attachGyroListener();
+}
 
 // ============================================
 // SETTINGS PANEL — bind controls to filterState
@@ -1091,6 +1215,8 @@ const SLIDER_BINDINGS = [
   ['seedInterval', 0],
   ['pSpeedX',   2],
   ['pSpeedY',   2],
+  ['gyroSensX', 1],
+  ['gyroSensY', 1],
 ];
 
 function fmt(v, digits) {
@@ -1108,9 +1234,12 @@ function syncControlsFromState() {
     if (valEl) valEl.textContent = fmt(filterState[key], digits);
   });
   // Toggles
-  document.getElementById('i-stitch').checked     = !!filterState.stitch;
-  document.getElementById('i-animFreq').checked   = !!filterState.animFreq;
-  document.getElementById('i-seedEvolve').checked = !!filterState.seedEvolve;
+  document.getElementById('i-stitch').checked      = !!filterState.stitch;
+  document.getElementById('i-animFreq').checked    = !!filterState.animFreq;
+  document.getElementById('i-seedEvolve').checked  = !!filterState.seedEvolve;
+  document.getElementById('i-gyroEnabled').checked = !!filterState.gyroEnabled;
+  document.getElementById('i-gyroInvX').checked    = !!filterState.gyroInvX;
+  document.getElementById('i-gyroInvY').checked    = !!filterState.gyroInvY;
   // Segmented controls
   document.querySelectorAll('.seg').forEach(seg => {
     const key = seg.dataset.seg;
@@ -1146,6 +1275,42 @@ function bindSettingsControls() {
   bindToggle('i-stitch',     'stitch');
   bindToggle('i-animFreq',   'animFreq');
   bindToggle('i-seedEvolve', 'seedEvolve');
+  bindToggle('i-gyroInvX',   'gyroInvX');
+  bindToggle('i-gyroInvY',   'gyroInvY');
+
+  // Gyro enable: must request permission inside the user-gesture handler (iOS).
+  const gyroToggle = document.getElementById('i-gyroEnabled');
+  gyroToggle.addEventListener('change', async () => {
+    if (gyroToggle.checked) {
+      const ok = await requestGyroPermission();
+      if (!ok) {
+        gyroToggle.checked = false;
+        filterState.gyroEnabled = false;
+        saveFilterState();
+        return;
+      }
+      filterState.gyroEnabled = true;
+    } else {
+      filterState.gyroEnabled = false;
+      const status = document.getElementById('gyroStatus');
+      if (status) status.textContent = 'Status: idle';
+    }
+    saveFilterState();
+  });
+
+  // Calibrate: snapshot current orientation as the zero-point.
+  document.getElementById('gyroCalibrate').addEventListener('click', () => {
+    if (!gyroLive) {
+      const status = document.getElementById('gyroStatus');
+      if (status) status.textContent = 'Status: enable gyroscope first';
+      return;
+    }
+    filterState.gyroCalGamma = lastGamma;
+    filterState.gyroCalBeta  = lastBeta;
+    saveFilterState();
+    const status = document.getElementById('gyroStatus');
+    if (status) status.textContent = `Status: calibrated (β ${lastBeta.toFixed(0)}°, γ ${lastGamma.toFixed(0)}°)`;
+  });
 
   document.querySelectorAll('.seg').forEach(seg => {
     const key = seg.dataset.seg;
@@ -1224,8 +1389,21 @@ const FADE_ALPHA = 0.985;   // each frame, history is redrawn at 98.5% alpha (sl
 const BLUR_PX    = 0.6;     // tiny blur per frame; accumulates over many frames
 
 let frameCounter = 0;
+let fpsLastSample = performance.now();
+let fpsFrameAccum = 0;
+const fpsBadgeEl = document.getElementById('fpsBadge');
 function drawDots() {
   frameCounter++;
+  // FPS — average over a 500ms window so the number is stable enough to read
+  fpsFrameAccum++;
+  const fpsNow = performance.now();
+  const fpsElapsed = fpsNow - fpsLastSample;
+  if (fpsElapsed >= 500) {
+    const fps = (fpsFrameAccum / fpsElapsed) * 1000;
+    if (fpsBadgeEl) fpsBadgeEl.textContent = `${fps.toFixed(0)} fps`;
+    fpsLastSample = fpsNow;
+    fpsFrameAccum = 0;
+  }
   const dpr = window.devicePixelRatio || 1;
   const w = window.innerWidth;
   const h = window.innerHeight;
@@ -1247,18 +1425,46 @@ function drawDots() {
   // STEP 3: restore DPR transform for crisp dot drawing in CSS pixel space
   rctx.scale(dpr, dpr);
 
-  // STEP 4: draw a fresh dot for each active pointer
+  // STEP 4: draw a fresh dot for each active pointer.
+  // Low framerate on the device leaves wide gaps between samples; we close
+  // the gap by drawing 2 interpolated dots between every two real samples
+  // (the queue is whatever pointermove + getCoalescedEvents pushed since
+  // the last frame). Result: visually continuous trail even at ~25 fps.
   const sinePulse = (Math.sin(frameCounter * 0.15) + 1) * 0.5; // 0..1
   const baseRadius = 10 + sinePulse * 8; // 10..18 px
+  const INTERP_STEPS = 2; // 2 interpolated dots between consecutive samples
 
   pointers.forEach(p => {
-    p.hue = (p.hue + 3) % 360;
-    rctx.fillStyle = `hsl(${p.hue}, 100%, 60%)`;
-    rctx.shadowBlur = 16;
-    rctx.shadowColor = `hsl(${p.hue}, 100%, 70%)`;
-    rctx.beginPath();
-    rctx.arc(p.x, p.y, baseRadius, 0, Math.PI * 2);
-    rctx.fill();
+    // Drain queued samples (or fall back to the live position if the finger
+    // didn't move this frame — keeps the dot alive while held still).
+    const samples = (p.queue && p.queue.length) ? p.queue : [{ x: p.x, y: p.y }];
+    let prevX = p.lastDrawnX, prevY = p.lastDrawnY;
+
+    // Distribute the per-frame hue advance across all dots we draw, so the
+    // visible color cycle stays at the same speed regardless of dot count.
+    const totalDots = samples.length * (INTERP_STEPS + 1);
+    const huePerDot = 3 / Math.max(totalDots, 1);
+
+    for (let s = 0; s < samples.length; s++) {
+      const tgt = samples[s];
+      // 2 interpolated middle points + the real sample = 3 dots per gap
+      for (let i = 1; i <= INTERP_STEPS + 1; i++) {
+        const t = i / (INTERP_STEPS + 1);
+        const ix = prevX + (tgt.x - prevX) * t;
+        const iy = prevY + (tgt.y - prevY) * t;
+        p.hue = (p.hue + huePerDot) % 360;
+        rctx.fillStyle = `hsl(${p.hue}, 100%, 60%)`;
+        rctx.shadowBlur = 16;
+        rctx.shadowColor = `hsl(${p.hue}, 100%, 70%)`;
+        rctx.beginPath();
+        rctx.arc(ix, iy, baseRadius, 0, Math.PI * 2);
+        rctx.fill();
+      }
+      prevX = tgt.x; prevY = tgt.y;
+    }
+    p.lastDrawnX = prevX;
+    p.lastDrawnY = prevY;
+    if (p.queue) p.queue.length = 0;
   });
   rctx.shadowBlur = 0;
 
@@ -1309,10 +1515,24 @@ function isExitArea(target) {
   return target.closest && (target.closest('[data-exit]') || target.closest('.exit-progress'));
 }
 
+// Up to ~10 simultaneous pointers are tracked (PointerEvents natively support
+// multi-touch; we don't cap, but soft-warn if it ever overflows).
+const MAX_POINTERS = 10;
+
 paintLayer.addEventListener('pointerdown', (e) => {
   if (isExitArea(e.target)) return;
   e.preventDefault();
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, hue: rand(0, 360), lastSpawn: 0 });
+  if (pointers.size >= MAX_POINTERS && !pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, {
+    x: e.clientX, y: e.clientY,
+    hue: rand(0, 360),
+    lastSpawn: 0,
+    // Queue of sub-frame samples captured between draw frames. drawDots()
+    // walks this each frame and adds interpolation steps between samples.
+    queue: [{ x: e.clientX, y: e.clientY }],
+    lastDrawnX: e.clientX,
+    lastDrawnY: e.clientY,
+  });
   handleGameTap(e.clientX, e.clientY);
   try { paintLayer.setPointerCapture(e.pointerId); } catch(err) {}
 });
@@ -1320,7 +1540,15 @@ paintLayer.addEventListener('pointerdown', (e) => {
 paintLayer.addEventListener('pointermove', (e) => {
   const p = pointers.get(e.pointerId);
   if (!p) return;
-  // Per-frame dot loop reads p.x / p.y directly — just update position here
+  // getCoalescedEvents() recovers the true high-frequency move samples that
+  // the browser folded into this single event for performance. On a 60Hz
+  // device with a 120Hz touch sensor this often returns 2 events per move.
+  const ev = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
+  if (ev && ev.length) {
+    for (let i = 0; i < ev.length; i++) p.queue.push({ x: ev[i].clientX, y: ev[i].clientY });
+  } else {
+    p.queue.push({ x: e.clientX, y: e.clientY });
+  }
   p.x = e.clientX;
   p.y = e.clientY;
 });
