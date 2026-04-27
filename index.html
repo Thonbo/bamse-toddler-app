@@ -129,13 +129,13 @@
   }
   .grid .tile.game { grid-column: span 2; aspect-ratio: 2.4 / 1; }
 
-  /* Landscape: 6 tiles in 3 columns × 2 rows */
+  /* Landscape: 8 tiles (5 videos + 3 games) in 4 columns × 2 rows */
   @media (orientation: landscape) {
     .grid {
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       grid-auto-rows: 1fr;
-      max-width: min(100%, calc(100vh * 1.8));
-      gap: clamp(8px, 1.5vw, 16px);
+      max-width: min(100%, calc(100vh * 2.2));
+      gap: clamp(8px, 1.2vw, 14px);
     }
     .grid .tile,
     .grid .tile.game {
@@ -206,6 +206,8 @@
   .tile.video4 { background: var(--m3-quinary-container); color: var(--m3-on-quinary-container); }
   .tile.video5 { background: var(--m3-senary-container);  color: var(--m3-on-senary-container);  }
   .tile.game   { background: var(--m3-primary-container); color: var(--m3-on-primary-container); }
+  .tile.physics { background: var(--m3-quaternary-container); color: var(--m3-on-quaternary-container); }
+  .tile.sounds  { background: var(--m3-quinary-container);    color: var(--m3-on-quinary-container);    }
 
   /* YouTube thumbnail layer. Sits behind emoji + label. When offline (or
      YouTube serves a 404 placeholder for an unavailable video), the .thumb
@@ -306,6 +308,124 @@
     letter-spacing: 0.1em;
     pointer-events: none;
     z-index: 50;
+  }
+
+  /* ===== 3D ARCADE BACK BUTTON =====
+     Big bold beveled button. Used in the new game views (physics + sounds)
+     where a visible exit makes more sense than a hidden long-press zone. */
+  .game-back {
+    position: absolute;
+    top: 16px; left: 16px;
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    z-index: 100;
+    font-family: 'Roboto Flex', system-ui, sans-serif;
+    font-size: 38px;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.4), 0 -1px 0 rgba(255,255,255,0.3);
+    background:
+      radial-gradient(circle at 32% 28%, #ff6680 0%, #e91e63 45%, #9c0a3a 100%);
+    box-shadow:
+      inset 0 -6px 0 rgba(0,0,0,0.35),
+      inset 0 4px 0 rgba(255,255,255,0.4),
+      inset 0 0 0 3px rgba(255,255,255,0.18),
+      0 6px 0 #5c0721,
+      0 10px 18px rgba(0,0,0,0.5);
+    transition: transform 80ms ease, box-shadow 80ms ease;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .game-back:active {
+    transform: translateY(4px);
+    box-shadow:
+      inset 0 -2px 0 rgba(0,0,0,0.45),
+      inset 0 2px 0 rgba(255,255,255,0.25),
+      inset 0 0 0 3px rgba(255,255,255,0.18),
+      0 2px 0 #5c0721,
+      0 4px 8px rgba(0,0,0,0.5);
+  }
+
+  /* ===== PHYSICS GAME ===== */
+  .phys-view { position: absolute; inset: 0; display: none; background: #1a1228; overflow: hidden; touch-action: none; }
+  .phys-view.active { display: block; }
+  .phys-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ===== SOUNDS GAME ===== */
+  .sounds-view { position: absolute; inset: 0; display: none; background: #0e1320; overflow: hidden; touch-action: none; }
+  .sounds-view.active { display: block; }
+  .sounds-grid {
+    position: absolute;
+    inset: 0;
+    padding: clamp(80px, 9vh, 110px) clamp(20px, 4vw, 40px) clamp(20px, 3vh, 40px);
+    display: grid;
+    gap: clamp(8px, 1.5vw, 16px);
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+  }
+  @media (orientation: portrait) {
+    .sounds-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(5, 1fr); }
+  }
+  /* Tactile arcade button — round dome, pressed-in on tap */
+  .sound-btn {
+    position: relative;
+    border: none;
+    border-radius: 50%;
+    aspect-ratio: 1;
+    cursor: pointer;
+    font-size: clamp(36px, 7vh, 72px);
+    color: rgba(0,0,0,0.85);
+    align-self: center;
+    justify-self: center;
+    width: 100%; max-width: clamp(80px, 18vh, 180px);
+    transition: transform 70ms ease, box-shadow 70ms ease;
+    -webkit-tap-highlight-color: transparent;
+    overflow: visible;
+  }
+  .sound-btn::before {
+    /* radial highlight that gives the dome */
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at 35% 28%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 55%);
+    pointer-events: none;
+  }
+  .sound-btn:active {
+    transform: translateY(5px) scale(0.97);
+  }
+  .sound-btn .emoji { position: relative; z-index: 1; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25)); }
+
+  /* Per-button colors (10 distinct arcade-machine colors) */
+  .sound-btn.c1  { background: radial-gradient(circle at 32% 28%, #ff6680 0%, #e91e63 50%, #8a0a3a 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #5c0721, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c2  { background: radial-gradient(circle at 32% 28%, #5cb8ff 0%, #2962ff 50%, #0d2b8a 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #061a5c, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c3  { background: radial-gradient(circle at 32% 28%, #ffe54d 0%, #ffd600 50%, #a07f00 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #5c4900, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c4  { background: radial-gradient(circle at 32% 28%, #5dffa3 0%, #00c853 50%, #006d2a 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #00451a, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c5  { background: radial-gradient(circle at 32% 28%, #cf6dff 0%, #aa00ff 50%, #5a0080 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #3d004f, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c6  { background: radial-gradient(circle at 32% 28%, #ffb866 0%, #ff6d00 50%, #8c3a00 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #5c2400, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c7  { background: radial-gradient(circle at 32% 28%, #ffffff 0%, #d8d4cc 50%, #7a786f 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #4a4a45, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c8  { background: radial-gradient(circle at 32% 28%, #66ffea 0%, #00bfa5 50%, #006658 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #003e36, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c9  { background: radial-gradient(circle at 32% 28%, #ffd1e8 0%, #f50057 50%, #8e0033 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #5a0020, 0 12px 22px rgba(0,0,0,0.55); }
+  .sound-btn.c10 { background: radial-gradient(circle at 32% 28%, #ffe699 0%, #d4af37 50%, #6e5a18 100%); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.35), 0 8px 0 #3e310d, 0 12px 22px rgba(0,0,0,0.55); }
+
+  /* Big animal-popup that rises and fades when a sound button is hit */
+  .sound-popup {
+    position: absolute;
+    pointer-events: none;
+    font-size: clamp(80px, 22vh, 220px);
+    transform: translate(-50%, -50%);
+    animation: soundPop 1.4s ease-out forwards;
+    text-shadow: 0 4px 14px rgba(0,0,0,0.6);
+    z-index: 90;
+  }
+  @keyframes soundPop {
+    0%   { transform: translate(-50%, -50%) scale(0.2) rotate(-12deg); opacity: 0; }
+    25%  { transform: translate(-50%, -50%) scale(1.2)  rotate(8deg);  opacity: 1; }
+    60%  { transform: translate(-50%, -50%) scale(1.0)  rotate(0deg);  opacity: 1; }
+    100% { transform: translate(-50%, calc(-50% - 80px)) scale(1.0) rotate(0deg); opacity: 0; }
   }
 
   /* FPS badge — bottom-right of the paint layer (visible during video + game) */
@@ -545,11 +665,13 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v26 · Tap to play</span>
+      <span class="sub">v27 · Tap to play</span>
     </h1>
-    <div class="version-badge">v26</div>
+    <div class="version-badge">v27</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
+      <button class="tile physics" id="physicsBtn"><span class="emoji">🧱</span><span class="label">Klodser</span></button>
+      <button class="tile sounds" id="soundsBtn"><span class="emoji">🐮</span><span class="label">Dyr</span></button>
     </div>
   </div>
 
@@ -562,6 +684,20 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="exit-icon">×</span>
     </div>
+  </div>
+
+  <!-- PHYSICS VIEW — Matter.js playground, shake the device to scatter pieces -->
+  <div class="phys-view" id="physicsView">
+    <canvas class="phys-canvas" id="physicsCanvas"></canvas>
+    <button class="game-back" id="physicsBack" aria-label="Back">←</button>
+    <div class="game-version-badge">v27</div>
+  </div>
+
+  <!-- SOUNDS VIEW — 2x5 grid of arcade buttons, animal sounds + popups -->
+  <div class="sounds-view" id="soundsView">
+    <div class="sounds-grid" id="soundsGrid"></div>
+    <button class="game-back" id="soundsBack" aria-label="Back">←</button>
+    <div class="game-version-badge">v27</div>
   </div>
 
   <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
@@ -578,7 +714,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v26</div>
+    <div class="game-version-badge">v27</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -775,6 +911,8 @@
 
 </div>
 
+<!-- Matter.js (physics engine) — CDN, browser-cached after first load -->
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
 <script>
 // ============================================
 // CONFIG — replace these YouTube IDs with your own
@@ -841,6 +979,10 @@ function showMenu() {
   gameView.classList.remove('active');
   paintLayer.classList.remove('active');
   ytFrame.src = 'about:blank';
+  // Tear down the per-game runtime so timers, listeners, and engines don't
+  // keep ticking in the background after the kid leaves a game.
+  if (typeof closePhysics === 'function') closePhysics();
+  if (typeof closeSounds  === 'function') closeSounds();
   // Clear rainbow trail and any active pointers
   if (typeof rctx !== 'undefined') rctx.clearRect(0, 0, rainbowCanvas.width, rainbowCanvas.height);
   if (typeof pointers !== 'undefined') pointers.clear();
@@ -912,6 +1054,10 @@ VIDEOS.forEach((v, i) => {
   grid.insertBefore(btn, gameBtnEl);
 });
 gameBtnEl.addEventListener('click', () => { initAudio(); playMenuBlip(); showGame(); });
+document.getElementById('physicsBtn').addEventListener('click', () => { initAudio(); playMenuBlip(); showPhysics(); });
+document.getElementById('soundsBtn') .addEventListener('click', () => { initAudio(); playMenuBlip(); showSounds();  });
+document.getElementById('physicsBack').addEventListener('click', () => { playMenuBlip(); showMenu(); });
+document.getElementById('soundsBack') .addEventListener('click', () => { playMenuBlip(); showMenu(); });
 
 // ============================================
 // FULLSCREEN
@@ -1682,6 +1828,256 @@ async function keepAwake() {
 }
 document.addEventListener('click', keepAwake, { once: true });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+
+// ============================================
+// PHYSICS GAME — Matter.js playground, shake-to-scatter
+// Bodies are emoji'd (🧱⚽⭐🎈🟦🟢🟣) until real PNGs are dropped in.
+// ============================================
+const physicsView   = document.getElementById('physicsView');
+const physicsCanvas = document.getElementById('physicsCanvas');
+const physCtx       = physicsCanvas.getContext('2d');
+
+let physEngine = null, physRunner = null, physRaf = null, physBodies = [];
+let physShakeHandler = null;
+const PHYS_ITEMS = [
+  { emoji: '🧱', kind: 'box',  size: 70 },
+  { emoji: '🟦', kind: 'box',  size: 70 },
+  { emoji: '🟥', kind: 'box',  size: 70 },
+  { emoji: '🟨', kind: 'box',  size: 70 },
+  { emoji: '🟩', kind: 'box',  size: 70 },
+  { emoji: '⚽', kind: 'ball', size: 64 },
+  { emoji: '🏀', kind: 'ball', size: 64 },
+  { emoji: '🎾', kind: 'ball', size: 56 },
+  { emoji: '🎱', kind: 'ball', size: 56 },
+  { emoji: '🎈', kind: 'ball', size: 70 },
+  { emoji: '⭐', kind: 'star', size: 72 },
+  { emoji: '🌟', kind: 'star', size: 72 },
+  { emoji: '✨', kind: 'star', size: 60 },
+  { emoji: '🪀', kind: 'ball', size: 60 },
+  { emoji: '🧸', kind: 'box',  size: 80 },
+];
+
+function showPhysics() {
+  if (typeof Matter === 'undefined') {
+    alert('Physics needs internet on first load (Matter.js CDN).');
+    return;
+  }
+  menu.style.display = 'none';
+  physicsView.classList.add('active');
+  tryFullscreen();
+  buildPhysicsScene();
+  attachPhysicsShake();
+  physRender();
+}
+
+function buildPhysicsScene() {
+  // Size canvas to viewport (DPR-aware, like the rainbow canvas)
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth, h = window.innerHeight;
+  physicsCanvas.width = w * dpr; physicsCanvas.height = h * dpr;
+  physicsCanvas.style.width = w + 'px'; physicsCanvas.style.height = h + 'px';
+  physCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  physEngine = Matter.Engine.create({ gravity: { x: 0, y: 1, scale: 0.0012 } });
+  physRunner = Matter.Runner.create();
+  Matter.Runner.run(physRunner, physEngine);
+
+  // Walls — keep things on-screen
+  const wallOpts = { isStatic: true, restitution: 0.6, render: { visible: false } };
+  Matter.Composite.add(physEngine.world, [
+    Matter.Bodies.rectangle(w / 2, -25,    w + 50, 50, wallOpts),
+    Matter.Bodies.rectangle(w / 2, h + 25, w + 50, 50, wallOpts),
+    Matter.Bodies.rectangle(-25,    h / 2, 50, h + 50, wallOpts),
+    Matter.Bodies.rectangle(w + 25, h / 2, 50, h + 50, wallOpts),
+  ]);
+
+  // Spawn the toy items at random positions across the top
+  physBodies = [];
+  PHYS_ITEMS.forEach((it, i) => {
+    const x = rand(it.size, w - it.size);
+    const y = rand(40, h * 0.4);
+    const body = (it.kind === 'ball')
+      ? Matter.Bodies.circle(x, y, it.size / 2, {
+          restitution: 0.7, friction: 0.05, density: 0.001,
+        })
+      : Matter.Bodies.rectangle(x, y, it.size, it.size, {
+          restitution: 0.55, friction: 0.1, density: 0.0015,
+          chamfer: { radius: 8 },
+        });
+    body.plugin = { emoji: it.emoji, size: it.size };
+    physBodies.push(body);
+    Matter.Composite.add(physEngine.world, body);
+  });
+
+  // Drag with the finger (mouse constraint translated to touch)
+  const mouse = Matter.Mouse.create(physicsCanvas);
+  const mouseConstraint = Matter.MouseConstraint.create(physEngine, {
+    mouse: mouse,
+    constraint: { stiffness: 0.2, render: { visible: false } },
+  });
+  Matter.Composite.add(physEngine.world, mouseConstraint);
+  physEngine.mouseConstraint = mouseConstraint;
+}
+
+function physRender() {
+  const w = window.innerWidth, h = window.innerHeight;
+  physCtx.clearRect(0, 0, w, h);
+  // Soft starry background
+  physCtx.fillStyle = 'rgba(255,255,255,0.05)';
+  physCtx.fillRect(0, 0, w, h);
+
+  for (const body of physBodies) {
+    const { x, y } = body.position;
+    physCtx.save();
+    physCtx.translate(x, y);
+    physCtx.rotate(body.angle);
+    physCtx.font = `${body.plugin.size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
+    physCtx.textAlign = 'center';
+    physCtx.textBaseline = 'middle';
+    physCtx.fillText(body.plugin.emoji, 0, 0);
+    physCtx.restore();
+  }
+  physRaf = requestAnimationFrame(physRender);
+}
+
+// Shake = brief impulse on every body proportional to acceleration.
+// DeviceMotionEvent gives accelerationIncludingGravity (m/s²); we threshold
+// it so subtle phone motion doesn't fling everything around.
+function attachPhysicsShake() {
+  const handler = (e) => {
+    const a = e.accelerationIncludingGravity || e.acceleration;
+    if (!a) return;
+    const ax = a.x || 0, ay = a.y || 0;
+    const mag = Math.hypot(ax, ay);
+    if (mag < 8) return; // ignore gentle motion
+    const fx = -ax * 0.0008;
+    const fy =  ay * 0.0008; // screen y is inverted vs device y
+    for (const body of physBodies) {
+      Matter.Body.applyForce(body, body.position, { x: fx + (Math.random() - 0.5) * 0.001, y: fy + (Math.random() - 0.5) * 0.001 });
+    }
+  };
+  // iOS 13+ permission flow
+  const attach = () => {
+    window.addEventListener('devicemotion', handler);
+    physShakeHandler = handler;
+  };
+  if (typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission().then(r => { if (r === 'granted') attach(); }).catch(() => {});
+  } else {
+    attach();
+  }
+}
+
+function closePhysics() {
+  if (!physicsView.classList.contains('active') && !physEngine) return;
+  physicsView.classList.remove('active');
+  if (physShakeHandler) { window.removeEventListener('devicemotion', physShakeHandler); physShakeHandler = null; }
+  if (physRaf) { cancelAnimationFrame(physRaf); physRaf = null; }
+  if (physRunner && physEngine) { Matter.Runner.stop(physRunner); }
+  if (physEngine) {
+    Matter.World.clear(physEngine.world, false);
+    Matter.Engine.clear(physEngine);
+  }
+  physRunner = null; physEngine = null; physBodies = [];
+  physCtx.clearRect(0, 0, physicsCanvas.width, physicsCanvas.height);
+}
+
+// ============================================
+// SOUNDS GAME — 2×5 arcade buttons; speechSynthesis says the Danish name,
+// a short synth chord plays underneath, animal emoji pops up + fades.
+// ============================================
+const soundsView = document.getElementById('soundsView');
+const soundsGrid = document.getElementById('soundsGrid');
+let soundPopupsContainer = null;
+let pendingPopupTimers = [];
+
+const ANIMALS = [
+  { emoji: '🐮', da: 'ko',      note: 130 }, // C3
+  { emoji: '🐶', da: 'hund',    note: 196 }, // G3
+  { emoji: '🐱', da: 'kat',     note: 261 }, // C4
+  { emoji: '🐷', da: 'gris',    note: 220 }, // A3
+  { emoji: '🐔', da: 'høne',    note: 329 }, // E4
+  { emoji: '🦆', da: 'and',     note: 174 }, // F3
+  { emoji: '🐑', da: 'får',     note: 246 }, // B3
+  { emoji: '🦁', da: 'løve',    note:  98 }, // G2
+  { emoji: '🐘', da: 'elefant', note:  82 }, // E2
+  { emoji: '🐵', da: 'abe',     note: 392 }, // G4
+];
+
+function showSounds() {
+  menu.style.display = 'none';
+  soundsView.classList.add('active');
+  tryFullscreen();
+  // Build the grid (idempotent — only build once)
+  if (!soundsGrid.firstChild) {
+    ANIMALS.forEach((a, i) => {
+      const btn = document.createElement('button');
+      btn.className = `sound-btn c${i + 1}`;
+      btn.innerHTML = `<span class="emoji">${a.emoji}</span>`;
+      btn.addEventListener('click', () => playAnimal(a, btn));
+      soundsGrid.appendChild(btn);
+    });
+  }
+}
+
+function playAnimalChord(noteHz) {
+  if (!audioCtx) return;
+  // Major triad: root, +4 semis (third), +7 semis (fifth)
+  const ratios = [1, Math.pow(2, 4 / 12), Math.pow(2, 7 / 12)];
+  ratios.forEach((r, idx) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = ['triangle', 'sine', 'square'][idx];
+    osc.frequency.setValueAtTime(noteHz * r, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+  });
+}
+
+function speakDanish(word) {
+  if (!('speechSynthesis' in window)) return;
+  // Cancel queued utterances so rapid taps don't pile up
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(word);
+  u.lang = 'da-DK';
+  u.rate = 0.9;
+  u.pitch = 1.1;
+  speechSynthesis.speak(u);
+}
+
+function spawnSoundPopup(emoji, x, y) {
+  const el = document.createElement('div');
+  el.className = 'sound-popup';
+  el.textContent = emoji;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  soundsView.appendChild(el);
+  const t = setTimeout(() => el.remove(), 1500);
+  pendingPopupTimers.push(t);
+}
+
+function playAnimal(a, btn) {
+  initAudio();
+  const r = btn.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top  + r.height / 2;
+  spawnSoundPopup(a.emoji, cx, cy);
+  playAnimalChord(a.note);
+  speakDanish(a.da);
+}
+
+function closeSounds() {
+  if (!soundsView.classList.contains('active')) return;
+  soundsView.classList.remove('active');
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  // Cancel pending popup removals and remove any popups still on screen
+  pendingPopupTimers.forEach(clearTimeout);
+  pendingPopupTimers = [];
+  soundsView.querySelectorAll('.sound-popup').forEach(p => p.remove());
+}
 
 // ============================================
 // SERVICE WORKER — offline app shell
