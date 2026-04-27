@@ -671,9 +671,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v29 · Tap to play</span>
+      <span class="sub">v30 · Tap to play</span>
     </h1>
-    <div class="version-badge">v29</div>
+    <div class="version-badge">v30</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
       <button class="tile physics" id="physicsBtn"><span class="emoji">🧱</span><span class="label">Klodser</span></button>
@@ -696,14 +696,14 @@
   <div class="phys-view" id="physicsView">
     <canvas class="phys-canvas" id="physicsCanvas"></canvas>
     <button class="game-back" id="physicsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v29</div>
+    <div class="game-version-badge">v30</div>
   </div>
 
   <!-- SOUNDS VIEW — 2x5 grid of arcade buttons, animal sounds + popups -->
   <div class="sounds-view" id="soundsView">
     <div class="sounds-grid" id="soundsGrid"></div>
     <button class="game-back" id="soundsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v29</div>
+    <div class="game-version-badge">v30</div>
   </div>
 
   <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
@@ -720,7 +720,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v29</div>
+    <div class="game-version-badge">v30</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -864,8 +864,8 @@
     </div>
 
     <div class="sp-row">
-      <label>Seed cycle (frames) <span class="val" id="v-seedInterval"></span></label>
-      <input type="range" id="i-seedInterval" min="10" max="600" step="5">
+      <label>Seed cycle (frames / bump) <span class="val" id="v-seedInterval"></span></label>
+      <input type="range" id="i-seedInterval" min="0.01" max="10" step="0.01">
     </div>
 
     <h3>mapPoint (feOffset)</h3>
@@ -1257,50 +1257,42 @@ const offsetEl  = document.getElementById('rainbowOffset');
 const dispMapEl = document.getElementById('rainbowDispMap');
 
 const FILTER_DEFAULTS = {
+  // Tuned baseline (user-supplied via panel Export, v30). Hit Reset in the
+  // panel to land back here; otherwise saved state in localStorage wins.
   // feTurbulence
-  turbType:     'fractalNoise', // or 'turbulence'
-  baseFreqX:    0.006,
-  baseFreqY:    0.008,
-  numOctaves:   2,
-  seed:         1,
-  stitch:       false,
-  // feDisplacementMap — applied to the bitmap each frame, so this is per-frame
-  // displacement. ~2-4 px gives a fluid drift; >10 px wipes the canvas in a
-  // second. (Old default of 85 was for one-shot CSS display filtering.)
-  scale:        3,
+  turbType:     'fractalNoise',
+  baseFreqX:    0.0055,
+  baseFreqY:    0.0043,
+  numOctaves:   3,
+  seed:         0,
+  stitch:       true,
+  // feDisplacementMap (per-frame applied to bitmap)
+  scale:        14.9,
   xChan:        'R',
   yChan:        'G',
   // self-evolution
-  animFreq:     true,
-  oscAmpX:      0.0008,
-  oscAmpY:      0.0008,
-  oscSpdX:      0.003,
-  oscSpdY:      0.0025,
-  seedEvolve:   false,
-  seedInterval: 120,
-  // mapPoint-style feOffset translate (animates feOffset dx/dy each frame).
-  // Small non-zero defaults give continuous, never-repeating evolution by
-  // sliding through the noise field — smoother than seed-snapping.
-  pSpeedX:      0.4,
-  pSpeedY:      0.3,
-  // History fade & blur (per-frame applied to the bitmap). Lower fadeAlpha
-  // = faster clear (less ghost trail). blurPx accumulates frame-over-frame
-  // and softens old strokes. alphaDecrement subtracts a fixed amount of
-  // alpha each frame (destination-out pass), so faint residue actually
-  // reaches zero instead of decaying asymptotically — needed because the
-  // displacement filter spreads pixels around and the multiplicative fade
-  // alone leaves a faint white ghost where pixels were pushed.
-  fadeAlpha:      0.92,
-  blurPx:         0.6,
-  alphaDecrement: 0.02,
-  // Gyroscope-driven mapPoint (overrides drift while enabled)
-  gyroEnabled:  false,
-  gyroSensX:    2.0,   // gamma (deg) → mapPoint.x px multiplier
-  gyroSensY:    2.0,   // beta  (deg) → mapPoint.y px multiplier
+  animFreq:     false,
+  oscAmpX:      0.0009,
+  oscAmpY:      0.0009,
+  oscSpdX:      0.0037,
+  oscSpdY:      0.0033,
+  seedEvolve:   true,
+  seedInterval: 1,        // frames per integer seed bump; range 0.01–10
+  // mapPoint drift (overridden by gyro when enabled)
+  pSpeedX:      0,
+  pSpeedY:      0,
+  // History fade & blur (per-frame applied to the bitmap)
+  fadeAlpha:      0.999,
+  blurPx:         3,
+  alphaDecrement: 0,
+  // Gyroscope-driven mapPoint
+  gyroEnabled:  true,
+  gyroSensX:    3.3,
+  gyroSensY:    3.3,
   gyroInvX:     false,
   gyroInvY:     false,
-  gyroCalGamma: 0,     // calibration: subtract from gamma
-  gyroCalBeta:  0,     // calibration: subtract from beta
+  gyroCalGamma: -77.6,    // overridden by auto-calibrate on first event
+  gyroCalBeta:  -2.4,
 };
 
 const FILTER_STORAGE_KEY = 'vesters.filter.v1';
@@ -1394,6 +1386,8 @@ async function requestGyroPermission() {
 // Master animation loop
 let filterTime = 0;
 let pOffsetX = 0, pOffsetY = 0; // current feOffset translation
+let seedAccum = 0;              // accumulator for fractional seedInterval
+let currentSeed = 0;            // current rendered seed (integer applied to feTurbulence)
 function animateFilter() {
   filterTime += 1;
   const s = filterState;
@@ -1409,11 +1403,21 @@ function animateFilter() {
   fy = Math.max(0.00001, fy);
   turbEl.setAttribute('baseFrequency', `${fx.toFixed(5)} ${fy.toFixed(5)}`);
 
-  // Seed: either evolves on a frame interval, or stays at the user-set value
-  if (s.seedEvolve && s.seedInterval > 0 && filterTime % s.seedInterval === 0) {
-    turbEl.setAttribute('seed', (filterTime / s.seedInterval) % 1000);
+  // Seed: accumulator-based so fractional seedInterval works (frames per
+  // integer seed bump). seedInterval=1 → +1 seed/frame; =0.1 → +10/frame;
+  // =10 → +0.1/frame (bumps every 10 frames). Old modulo approach broke
+  // for intervals < 1 because integer % fractional ≠ 0 reliably.
+  if (s.seedEvolve && s.seedInterval > 0) {
+    seedAccum += 1 / s.seedInterval;
+    if (seedAccum >= 1) {
+      const step = Math.floor(seedAccum);
+      seedAccum -= step;
+      currentSeed = (currentSeed + step) % 1000;
+      turbEl.setAttribute('seed', currentSeed);
+    }
   } else if (!s.seedEvolve) {
-    turbEl.setAttribute('seed', s.seed);
+    currentSeed = s.seed;
+    turbEl.setAttribute('seed', currentSeed);
   }
 
   // mapPoint translation: gyro overrides constant drift when enabled & live
@@ -1460,7 +1464,7 @@ const SLIDER_BINDINGS = [
   ['oscAmpY',   5],
   ['oscSpdX',   4],
   ['oscSpdY',   4],
-  ['seedInterval', 0],
+  ['seedInterval', 2],
   ['pSpeedX',   2],
   ['pSpeedY',   2],
   ['gyroSensX', 1],
