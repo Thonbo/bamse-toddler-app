@@ -499,9 +499,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v18 · Tap to play</span>
+      <span class="sub">v19 · Tap to play</span>
     </h1>
-    <div class="version-badge">v18</div>
+    <div class="version-badge">v19</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -532,7 +532,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v18</div>
+    <div class="game-version-badge">v19</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -1036,11 +1036,13 @@ const FILTER_DEFAULTS = {
   oscAmpY:      0.0008,
   oscSpdX:      0.003,
   oscSpdY:      0.0025,
-  seedEvolve:   true,
+  seedEvolve:   false,
   seedInterval: 120,
-  // mapPoint-style feOffset translate (animates feOffset dx/dy each frame)
-  pSpeedX:      0,
-  pSpeedY:      0,
+  // mapPoint-style feOffset translate (animates feOffset dx/dy each frame).
+  // Small non-zero defaults give continuous, never-repeating evolution by
+  // sliding through the noise field — smoother than seed-snapping.
+  pSpeedX:      0.4,
+  pSpeedY:      0.3,
   // Gyroscope-driven mapPoint (overrides drift while enabled)
   gyroEnabled:  false,
   gyroSensX:    2.0,   // gamma (deg) → mapPoint.x px multiplier
