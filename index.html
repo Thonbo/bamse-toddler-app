@@ -671,9 +671,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v28 · Tap to play</span>
+      <span class="sub">v29 · Tap to play</span>
     </h1>
-    <div class="version-badge">v28</div>
+    <div class="version-badge">v29</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
       <button class="tile physics" id="physicsBtn"><span class="emoji">🧱</span><span class="label">Klodser</span></button>
@@ -696,14 +696,14 @@
   <div class="phys-view" id="physicsView">
     <canvas class="phys-canvas" id="physicsCanvas"></canvas>
     <button class="game-back" id="physicsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v28</div>
+    <div class="game-version-badge">v29</div>
   </div>
 
   <!-- SOUNDS VIEW — 2x5 grid of arcade buttons, animal sounds + popups -->
   <div class="sounds-view" id="soundsView">
     <div class="sounds-grid" id="soundsGrid"></div>
     <button class="game-back" id="soundsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v28</div>
+    <div class="game-version-badge">v29</div>
   </div>
 
   <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
@@ -720,7 +720,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v28</div>
+    <div class="game-version-badge">v29</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -826,6 +826,11 @@
     <div class="sp-row">
       <label>Blur (px / frame) <span class="val" id="v-blurPx"></span></label>
       <input type="range" id="i-blurPx" min="0" max="3" step="0.05">
+    </div>
+
+    <div class="sp-row">
+      <label>Alpha decrement (per frame) <span class="val" id="v-alphaDecrement"></span></label>
+      <input type="range" id="i-alphaDecrement" min="0" max="0.2" step="0.005">
     </div>
 
     <h3>Self-evolution animation</h3>
@@ -1072,9 +1077,13 @@ function tryFullscreen() {
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
   else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-  // Lock to landscape — best on tablets and prevents the kid accidentally rotating
+  // Lock to a SPECIFIC landscape orientation (not generic 'landscape',
+  // which still allows the device to flip 180° between primary and
+  // secondary). Fall back to the generic value if the platform rejects
+  // primary/secondary.
   if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('landscape').catch(()=>{});
+    screen.orientation.lock('landscape-primary')
+      .catch(() => screen.orientation.lock('landscape').catch(() => {}));
   }
 }
 
@@ -1276,9 +1285,14 @@ const FILTER_DEFAULTS = {
   pSpeedY:      0.3,
   // History fade & blur (per-frame applied to the bitmap). Lower fadeAlpha
   // = faster clear (less ghost trail). blurPx accumulates frame-over-frame
-  // and softens old strokes.
-  fadeAlpha:    0.92,
-  blurPx:       0.6,
+  // and softens old strokes. alphaDecrement subtracts a fixed amount of
+  // alpha each frame (destination-out pass), so faint residue actually
+  // reaches zero instead of decaying asymptotically — needed because the
+  // displacement filter spreads pixels around and the multiplicative fade
+  // alone leaves a faint white ghost where pixels were pushed.
+  fadeAlpha:      0.92,
+  blurPx:         0.6,
+  alphaDecrement: 0.02,
   // Gyroscope-driven mapPoint (overrides drift while enabled)
   gyroEnabled:  false,
   gyroSensX:    2.0,   // gamma (deg) → mapPoint.x px multiplier
@@ -1322,11 +1336,23 @@ let lastGamma = 0; // -90..90  (left-right tilt)
 let lastBeta  = 0; // -180..180 (front-back tilt)
 let gyroLive  = false; // true once at least one event has arrived
 let gyroListenerAttached = false;
+let gyroNeedsAutoCalibrate = false; // captured-on-first-event after enable
 
 function handleDeviceOrientation(e) {
   if (e.gamma === null || e.beta === null) return;
   lastGamma = e.gamma;
   lastBeta  = e.beta;
+  if (gyroNeedsAutoCalibrate) {
+    // First reading after enable becomes the zero-point. Otherwise the
+    // user's natural holding pose acts as a permanent offset and the
+    // noise field starts hard-pushed in some direction.
+    filterState.gyroCalGamma = lastGamma;
+    filterState.gyroCalBeta  = lastBeta;
+    gyroNeedsAutoCalibrate = false;
+    saveFilterState();
+    const status = document.getElementById('gyroStatus');
+    if (status) status.textContent = `Status: zeroed (β ${lastBeta.toFixed(0)}°, γ ${lastGamma.toFixed(0)}°)`;
+  }
   gyroLive  = true;
   const r = document.getElementById('gyroReadout');
   if (r) r.textContent = `β ${lastBeta.toFixed(0)}°  γ ${lastGamma.toFixed(0)}°`;
@@ -1336,6 +1362,9 @@ function attachGyroListener() {
   if (gyroListenerAttached) return;
   window.addEventListener('deviceorientation', handleDeviceOrientation);
   gyroListenerAttached = true;
+  // Whenever the listener is freshly attached (toggle on, or page load with
+  // saved-on state), the first incoming reading should become the zero-point.
+  gyroNeedsAutoCalibrate = true;
 }
 
 // iOS 13+ requires explicit user-gesture permission. Other platforms grant implicitly.
@@ -1436,8 +1465,9 @@ const SLIDER_BINDINGS = [
   ['pSpeedY',   2],
   ['gyroSensX', 1],
   ['gyroSensY', 1],
-  ['fadeAlpha', 3],
-  ['blurPx',    2],
+  ['fadeAlpha',      3],
+  ['blurPx',         2],
+  ['alphaDecrement', 3],
 ];
 
 function fmt(v, digits) {
@@ -1666,6 +1696,18 @@ function drawDots() {
   rctx.globalAlpha = filterState.fadeAlpha;
   rctx.drawImage(blurCanvas, 0, 0);
   rctx.globalAlpha = 1;
+
+  // STEP 2b: subtractive alpha pass — knocks every pixel's alpha down by a
+  // fixed amount. The multiplicative fade in step 2 decays alpha
+  // asymptotically (never reaches zero); this guarantees faint residue
+  // from displacement is actually erased instead of accumulating into a
+  // permanent white ghost where the filter pushed pixels.
+  if (filterState.alphaDecrement > 0) {
+    rctx.globalCompositeOperation = 'destination-out';
+    rctx.fillStyle = `rgba(0,0,0,${filterState.alphaDecrement})`;
+    rctx.fillRect(0, 0, rainbowCanvas.width, rainbowCanvas.height);
+    rctx.globalCompositeOperation = 'source-over';
+  }
 
   // STEP 3: restore DPR transform for crisp dot drawing in CSS pixel space
   rctx.scale(dpr, dpr);
@@ -1972,13 +2014,16 @@ function buildPhysicsScene() {
 }
 
 function resizePhysicsCanvas() {
-  const dpr = window.devicePixelRatio || 1;
   const w = window.innerWidth, h = window.innerHeight;
-  physicsCanvas.width  = w * dpr;
-  physicsCanvas.height = h * dpr;
+  // No DPR scaling here. Matter.Mouse maps touch coords through
+  // (canvas.width / canvas.clientWidth), so a DPR-scaled buffer makes
+  // every touch land at 2x its real position — bodies never get hit.
+  // Slight softness on emoji text is acceptable; correct input is not.
+  physicsCanvas.width  = w;
+  physicsCanvas.height = h;
   physicsCanvas.style.width  = w + 'px';
   physicsCanvas.style.height = h + 'px';
-  physCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  physCtx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 function physRender() {
