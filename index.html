@@ -545,9 +545,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v25 · Tap to play</span>
+      <span class="sub">v26 · Tap to play</span>
     </h1>
-    <div class="version-badge">v25</div>
+    <div class="version-badge">v26</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -578,7 +578,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v25</div>
+    <div class="game-version-badge">v26</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -671,6 +671,19 @@
         <button data-val="R">R</button><button data-val="G">G</button>
         <button data-val="B">B</button><button data-val="A">A</button>
       </div>
+    </div>
+
+    <h3>Trail fade &amp; blur</h3>
+    <p class="sp-hint">How fast the bitmap clears each frame. Lower fade alpha = ghosts disappear faster. Higher blur accumulates over time, softening old strokes.</p>
+
+    <div class="sp-row">
+      <label>Fade alpha (per frame) <span class="val" id="v-fadeAlpha"></span></label>
+      <input type="range" id="i-fadeAlpha" min="0.5" max="0.999" step="0.001">
+    </div>
+
+    <div class="sp-row">
+      <label>Blur (px / frame) <span class="val" id="v-blurPx"></span></label>
+      <input type="range" id="i-blurPx" min="0" max="3" step="0.05">
     </div>
 
     <h3>Self-evolution animation</h3>
@@ -1109,6 +1122,11 @@ const FILTER_DEFAULTS = {
   // sliding through the noise field — smoother than seed-snapping.
   pSpeedX:      0.4,
   pSpeedY:      0.3,
+  // History fade & blur (per-frame applied to the bitmap). Lower fadeAlpha
+  // = faster clear (less ghost trail). blurPx accumulates frame-over-frame
+  // and softens old strokes.
+  fadeAlpha:    0.92,
+  blurPx:       0.6,
   // Gyroscope-driven mapPoint (overrides drift while enabled)
   gyroEnabled:  false,
   gyroSensX:    2.0,   // gamma (deg) → mapPoint.x px multiplier
@@ -1266,6 +1284,8 @@ const SLIDER_BINDINGS = [
   ['pSpeedY',   2],
   ['gyroSensX', 1],
   ['gyroSensY', 1],
+  ['fadeAlpha', 3],
+  ['blurPx',    2],
 ];
 
 function fmt(v, digits) {
@@ -1453,9 +1473,8 @@ const SETTINGS_HOLD_MS = 1500;
 
 // Offscreen blur canvas was already declared earlier (next to rainbowCanvas).
 
-// Tunables
-const FADE_ALPHA = 0.985;   // each frame, history is redrawn at 98.5% alpha (slow fade)
-const BLUR_PX    = 0.6;     // tiny blur per frame; accumulates over many frames
+// Tunables — defaults live in FILTER_DEFAULTS, runtime values in filterState
+// (panel sliders write straight to filterState.fadeAlpha / .blurPx).
 
 let frameCounter = 0;
 let fpsLastSample = performance.now();
@@ -1485,14 +1504,14 @@ function drawDots() {
   // displayed through a static lens.
   bctx.setTransform(1, 0, 0, 1, 0, 0); // reset (no DPR scale on blur canvas)
   bctx.clearRect(0, 0, blurCanvas.width, blurCanvas.height);
-  bctx.filter = `blur(${BLUR_PX}px) url(#rainbowDisplace)`;
+  bctx.filter = `blur(${filterState.blurPx}px) url(#rainbowDisplace)`;
   bctx.drawImage(rainbowCanvas, 0, 0);
   bctx.filter = 'none';
 
   // STEP 2: clear the rainbow canvas and redraw the (blurred) history at reduced alpha
   rctx.setTransform(1, 0, 0, 1, 0, 0); // work in raw pixel space for the redraw
   rctx.clearRect(0, 0, rainbowCanvas.width, rainbowCanvas.height);
-  rctx.globalAlpha = FADE_ALPHA;
+  rctx.globalAlpha = filterState.fadeAlpha;
   rctx.drawImage(blurCanvas, 0, 0);
   rctx.globalAlpha = 1;
 
