@@ -671,9 +671,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v32 · Tap to play</span>
+      <span class="sub">v33 · Tap to play</span>
     </h1>
-    <div class="version-badge">v32</div>
+    <div class="version-badge">v33</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
       <button class="tile physics" id="physicsBtn"><span class="emoji">🧱</span><span class="label">Klodser</span></button>
@@ -696,14 +696,14 @@
   <div class="phys-view" id="physicsView">
     <canvas class="phys-canvas" id="physicsCanvas"></canvas>
     <button class="game-back" id="physicsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v32</div>
+    <div class="game-version-badge">v33</div>
   </div>
 
   <!-- SOUNDS VIEW — 2x5 grid of arcade buttons, animal sounds + popups -->
   <div class="sounds-view" id="soundsView">
     <div class="sounds-grid" id="soundsGrid"></div>
     <button class="game-back" id="soundsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v32</div>
+    <div class="game-version-badge">v33</div>
   </div>
 
   <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
@@ -720,7 +720,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v32</div>
+    <div class="game-version-badge">v33</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -831,30 +831,6 @@
     </div>
 
     <h3>Self-evolution animation</h3>
-
-    <div class="sp-row toggle">
-      <label>Animate baseFrequency <input type="checkbox" id="i-animFreq"></label>
-    </div>
-
-    <div class="sp-row">
-      <label>Freq oscillation amp X <span class="val" id="v-oscAmpX"></span></label>
-      <input type="range" id="i-oscAmpX" min="0" max="0.005" step="0.00005">
-    </div>
-
-    <div class="sp-row">
-      <label>Freq oscillation amp Y <span class="val" id="v-oscAmpY"></span></label>
-      <input type="range" id="i-oscAmpY" min="0" max="0.005" step="0.00005">
-    </div>
-
-    <div class="sp-row">
-      <label>Oscillation speed X <span class="val" id="v-oscSpdX"></span></label>
-      <input type="range" id="i-oscSpdX" min="0" max="0.02" step="0.0001">
-    </div>
-
-    <div class="sp-row">
-      <label>Oscillation speed Y <span class="val" id="v-oscSpdY"></span></label>
-      <input type="range" id="i-oscSpdY" min="0" max="0.02" step="0.0001">
-    </div>
 
     <div class="sp-row toggle">
       <label>Auto-evolve seed <input type="checkbox" id="i-seedEvolve"></label>
@@ -980,7 +956,8 @@ function showVideo(idx) {
   ytFrame.src = `https://www.youtube.com/embed/${startId}?${params.toString()}`;
   menu.style.display = 'none';
   videoView.classList.add('active');
-  paintLayer.classList.add('active'); // paint overlay always active during video
+  // Tap-game paint layer no longer overlays videos — kept for the standalone
+  // game only. Watching the song is the focus during video.
   tryFullscreen();
 }
 
@@ -1207,7 +1184,7 @@ const turbEl    = document.getElementById('rainbowTurb');
 const dispMapEl = document.getElementById('rainbowDispMap');
 
 const FILTER_DEFAULTS = {
-  // Tuned baseline (user-supplied via panel Export, v32). Hit Reset in the
+  // Tuned baseline (user-supplied via panel Export, v33). Hit Reset in the
   // panel to land back here; otherwise saved state in localStorage wins.
   // feTurbulence
   turbType:     'fractalNoise',
@@ -1221,11 +1198,6 @@ const FILTER_DEFAULTS = {
   xChan:        'R',
   yChan:        'G',
   // self-evolution
-  animFreq:     false,
-  oscAmpX:      0.0009,
-  oscAmpY:      0.0009,
-  oscSpdX:      0.0037,
-  oscSpdY:      0.0033,
   seedEvolve:   true,
   seedInterval: 1,        // frames per integer seed bump; range 0.01–50
   // History fade & blur (per-frame applied to the bitmap)
@@ -1234,10 +1206,10 @@ const FILTER_DEFAULTS = {
   alphaDecrement: 0,
 };
 
-// Bumped from v1 → v2 when mapPoint/gyro keys were removed (v32). The
-// version suffix invalidates any previously-saved state so users land on
-// the new clean defaults rather than carrying stale keys forward.
-const FILTER_STORAGE_KEY = 'vesters.filter.v2';
+// Storage version: v3 bumped when oscillation keys were removed (v33).
+// Each bump invalidates any previously-saved state so users land on the
+// new clean defaults rather than carrying stale keys forward.
+const FILTER_STORAGE_KEY = 'vesters.filter.v3';
 function loadFilterState() {
   try {
     const raw = localStorage.getItem(FILTER_STORAGE_KEY);
@@ -1251,11 +1223,15 @@ function saveFilterState() {
 const filterState = loadFilterState();
 
 // Apply all static (non-animated) attributes to the SVG filter primitives.
-// The animation loop handles baseFrequency + seed + offset itself.
+// baseFrequency is static now (oscillation removed in v33); only the seed
+// continues to evolve in the animation loop.
 function applyStaticFilterAttrs() {
   turbEl.setAttribute('type', filterState.turbType);
   turbEl.setAttribute('numOctaves', filterState.numOctaves);
   turbEl.setAttribute('stitchTiles', filterState.stitch ? 'stitch' : 'noStitch');
+  const fx = Math.max(0.00001, filterState.baseFreqX);
+  const fy = Math.max(0.00001, filterState.baseFreqY);
+  turbEl.setAttribute('baseFrequency', `${fx.toFixed(5)} ${fy.toFixed(5)}`);
   dispMapEl.setAttribute('scale', filterState.scale);
   dispMapEl.setAttribute('xChannelSelector', filterState.xChan);
   dispMapEl.setAttribute('yChannelSelector', filterState.yChan);
@@ -1269,17 +1245,6 @@ let currentSeed = 0;            // current rendered seed (integer applied to feT
 function animateFilter() {
   filterTime += 1;
   const s = filterState;
-
-  // baseFrequency: optional sinusoidal self-evolution around the user-set mean
-  let fx = s.baseFreqX, fy = s.baseFreqY;
-  if (s.animFreq) {
-    fx = s.baseFreqX + Math.sin(filterTime * s.oscSpdX) * s.oscAmpX;
-    fy = s.baseFreqY + Math.cos(filterTime * s.oscSpdY) * s.oscAmpY;
-  }
-  // Clamp to non-negative — feTurbulence rejects negatives
-  fx = Math.max(0.00001, fx);
-  fy = Math.max(0.00001, fy);
-  turbEl.setAttribute('baseFrequency', `${fx.toFixed(5)} ${fy.toFixed(5)}`);
 
   // Seed: accumulator-based so fractional seedInterval works (frames per
   // integer seed bump). seedInterval=1 → +1 seed/frame; =0.1 → +10/frame;
@@ -1316,10 +1281,6 @@ const SLIDER_BINDINGS = [
   ['octaves',   0, 'numOctaves'],
   ['seed',      0],
   ['scale',     1],
-  ['oscAmpX',   5],
-  ['oscAmpY',   5],
-  ['oscSpdX',   4],
-  ['oscSpdY',   4],
   ['seedInterval', 2],
   ['fadeAlpha',      3],
   ['blurPx',         2],
@@ -1342,7 +1303,6 @@ function syncControlsFromState() {
   });
   // Toggles
   document.getElementById('i-stitch').checked      = !!filterState.stitch;
-  document.getElementById('i-animFreq').checked    = !!filterState.animFreq;
   document.getElementById('i-seedEvolve').checked  = !!filterState.seedEvolve;
   // Segmented controls
   document.querySelectorAll('.seg').forEach(seg => {
@@ -1377,7 +1337,6 @@ function bindSettingsControls() {
     });
   };
   bindToggle('i-stitch',     'stitch');
-  bindToggle('i-animFreq',   'animFreq');
   bindToggle('i-seedEvolve', 'seedEvolve');
 
   document.querySelectorAll('.seg').forEach(seg => {
