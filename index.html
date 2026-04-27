@@ -545,9 +545,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v23 · Tap to play</span>
+      <span class="sub">v24 · Tap to play</span>
     </h1>
-    <div class="version-badge">v23</div>
+    <div class="version-badge">v24</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -578,7 +578,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v23</div>
+    <div class="game-version-badge">v24</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -838,14 +838,16 @@ function showMenu() {
 
 function showVideo(idx) {
   initAudio();
-  const startId = VIDEOS[idx].id;
-  // Build the rest of the playlist starting after the chosen video, wrapping around
-  const rest = [];
-  for (let i = 1; i < VIDEOS.length; i++) {
-    rest.push(VIDEOS[(idx + i) % VIDEOS.length].id);
+  // Build the full play order starting from the chosen video, wrapping
+  // through the rest. With loop=1, YouTube REQUIRES the start ID to be
+  // present in the playlist parameter (otherwise it picks the first
+  // playlist entry as the actual starting video — which is the
+  // "wrong-video-plays" bug).
+  const ids = [];
+  for (let i = 0; i < VIDEOS.length; i++) {
+    ids.push(VIDEOS[(idx + i) % VIDEOS.length].id);
   }
-  // After all videos play once, loop back to the start of the playlist
-  // (loop=1 + playlist=... makes the iframe cycle through them again)
+  const startId = ids[0];
   const params = new URLSearchParams({
     autoplay: '1',
     controls: '0',
@@ -856,7 +858,7 @@ function showVideo(idx) {
     fs: '0',
     disablekb: '1',
     loop: '1',
-    playlist: rest.join(','),
+    playlist: ids.join(','),
   });
   ytFrame.src = `https://www.youtube.com/embed/${startId}?${params.toString()}`;
   menu.style.display = 'none';

@@ -5,7 +5,7 @@
 //   - Refuse to cache tiny/empty responses (defends against bad CDN responses)
 //   - YouTube traffic: always pass through, never intercept
 
-const CACHE = 'vesters-v23';
+const CACHE = 'vesters-v24';
 const SHELL = [
   '/',
   '/index.html',
