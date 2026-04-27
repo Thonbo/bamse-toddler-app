@@ -281,6 +281,22 @@
     z-index: 50;
   }
 
+  /* FPS badge — bottom-right of the paint layer (visible during video + game) */
+  .fps-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-family: 'Roboto Flex', monospace;
+    font-variation-settings: 'opsz' 10, 'wght' 500;
+    font-size: 10px;
+    color: white;
+    opacity: 0.55;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    z-index: 50;
+    text-shadow: 0 0 4px rgba(0,0,0,0.6);
+  }
+
   /* ===== VIDEO VIEW ===== */
   .video-view { position: absolute; inset: 0; background: #000; display: none; }
   .video-view.active { display: block; }
@@ -499,9 +515,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v19 · Tap to play</span>
+      <span class="sub">v20 · Tap to play</span>
     </h1>
-    <div class="version-badge">v19</div>
+    <div class="version-badge">v20</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -532,7 +548,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v19</div>
+    <div class="game-version-badge">v20</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -552,6 +568,7 @@
     </svg>
     <canvas class="rainbow-canvas" id="rainbowCanvas"></canvas>
     <div class="game-canvas" id="gameCanvas"></div>
+    <div class="fps-badge" id="fpsBadge">— fps</div>
   </div>
 
   <!-- Install prompt (M3 snackbar) -->
@@ -1372,8 +1389,21 @@ const FADE_ALPHA = 0.985;   // each frame, history is redrawn at 98.5% alpha (sl
 const BLUR_PX    = 0.6;     // tiny blur per frame; accumulates over many frames
 
 let frameCounter = 0;
+let fpsLastSample = performance.now();
+let fpsFrameAccum = 0;
+const fpsBadgeEl = document.getElementById('fpsBadge');
 function drawDots() {
   frameCounter++;
+  // FPS — average over a 500ms window so the number is stable enough to read
+  fpsFrameAccum++;
+  const fpsNow = performance.now();
+  const fpsElapsed = fpsNow - fpsLastSample;
+  if (fpsElapsed >= 500) {
+    const fps = (fpsFrameAccum / fpsElapsed) * 1000;
+    if (fpsBadgeEl) fpsBadgeEl.textContent = `${fps.toFixed(0)} fps`;
+    fpsLastSample = fpsNow;
+    fpsFrameAccum = 0;
+  }
   const dpr = window.devicePixelRatio || 1;
   const w = window.innerWidth;
   const h = window.innerHeight;
@@ -1395,18 +1425,46 @@ function drawDots() {
   // STEP 3: restore DPR transform for crisp dot drawing in CSS pixel space
   rctx.scale(dpr, dpr);
 
-  // STEP 4: draw a fresh dot for each active pointer
+  // STEP 4: draw a fresh dot for each active pointer.
+  // Low framerate on the device leaves wide gaps between samples; we close
+  // the gap by drawing 2 interpolated dots between every two real samples
+  // (the queue is whatever pointermove + getCoalescedEvents pushed since
+  // the last frame). Result: visually continuous trail even at ~25 fps.
   const sinePulse = (Math.sin(frameCounter * 0.15) + 1) * 0.5; // 0..1
   const baseRadius = 10 + sinePulse * 8; // 10..18 px
+  const INTERP_STEPS = 2; // 2 interpolated dots between consecutive samples
 
   pointers.forEach(p => {
-    p.hue = (p.hue + 3) % 360;
-    rctx.fillStyle = `hsl(${p.hue}, 100%, 60%)`;
-    rctx.shadowBlur = 16;
-    rctx.shadowColor = `hsl(${p.hue}, 100%, 70%)`;
-    rctx.beginPath();
-    rctx.arc(p.x, p.y, baseRadius, 0, Math.PI * 2);
-    rctx.fill();
+    // Drain queued samples (or fall back to the live position if the finger
+    // didn't move this frame — keeps the dot alive while held still).
+    const samples = (p.queue && p.queue.length) ? p.queue : [{ x: p.x, y: p.y }];
+    let prevX = p.lastDrawnX, prevY = p.lastDrawnY;
+
+    // Distribute the per-frame hue advance across all dots we draw, so the
+    // visible color cycle stays at the same speed regardless of dot count.
+    const totalDots = samples.length * (INTERP_STEPS + 1);
+    const huePerDot = 3 / Math.max(totalDots, 1);
+
+    for (let s = 0; s < samples.length; s++) {
+      const tgt = samples[s];
+      // 2 interpolated middle points + the real sample = 3 dots per gap
+      for (let i = 1; i <= INTERP_STEPS + 1; i++) {
+        const t = i / (INTERP_STEPS + 1);
+        const ix = prevX + (tgt.x - prevX) * t;
+        const iy = prevY + (tgt.y - prevY) * t;
+        p.hue = (p.hue + huePerDot) % 360;
+        rctx.fillStyle = `hsl(${p.hue}, 100%, 60%)`;
+        rctx.shadowBlur = 16;
+        rctx.shadowColor = `hsl(${p.hue}, 100%, 70%)`;
+        rctx.beginPath();
+        rctx.arc(ix, iy, baseRadius, 0, Math.PI * 2);
+        rctx.fill();
+      }
+      prevX = tgt.x; prevY = tgt.y;
+    }
+    p.lastDrawnX = prevX;
+    p.lastDrawnY = prevY;
+    if (p.queue) p.queue.length = 0;
   });
   rctx.shadowBlur = 0;
 
@@ -1457,10 +1515,24 @@ function isExitArea(target) {
   return target.closest && (target.closest('[data-exit]') || target.closest('.exit-progress'));
 }
 
+// Up to ~10 simultaneous pointers are tracked (PointerEvents natively support
+// multi-touch; we don't cap, but soft-warn if it ever overflows).
+const MAX_POINTERS = 10;
+
 paintLayer.addEventListener('pointerdown', (e) => {
   if (isExitArea(e.target)) return;
   e.preventDefault();
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, hue: rand(0, 360), lastSpawn: 0 });
+  if (pointers.size >= MAX_POINTERS && !pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, {
+    x: e.clientX, y: e.clientY,
+    hue: rand(0, 360),
+    lastSpawn: 0,
+    // Queue of sub-frame samples captured between draw frames. drawDots()
+    // walks this each frame and adds interpolation steps between samples.
+    queue: [{ x: e.clientX, y: e.clientY }],
+    lastDrawnX: e.clientX,
+    lastDrawnY: e.clientY,
+  });
   handleGameTap(e.clientX, e.clientY);
   try { paintLayer.setPointerCapture(e.pointerId); } catch(err) {}
 });
@@ -1468,7 +1540,15 @@ paintLayer.addEventListener('pointerdown', (e) => {
 paintLayer.addEventListener('pointermove', (e) => {
   const p = pointers.get(e.pointerId);
   if (!p) return;
-  // Per-frame dot loop reads p.x / p.y directly — just update position here
+  // getCoalescedEvents() recovers the true high-frequency move samples that
+  // the browser folded into this single event for performance. On a 60Hz
+  // device with a 120Hz touch sensor this often returns 2 events per move.
+  const ev = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
+  if (ev && ev.length) {
+    for (let i = 0; i < ev.length; i++) p.queue.push({ x: ev[i].clientX, y: ev[i].clientY });
+  } else {
+    p.queue.push({ x: e.clientX, y: e.clientY });
+  }
   p.x = e.clientX;
   p.y = e.clientY;
 });
