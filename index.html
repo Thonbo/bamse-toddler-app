@@ -545,9 +545,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v24 · Tap to play</span>
+      <span class="sub">v25 · Tap to play</span>
     </h1>
-    <div class="version-badge">v24</div>
+    <div class="version-badge">v25</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -578,7 +578,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v24</div>
+    <div class="game-version-badge">v25</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -1029,7 +1029,9 @@ function spawnFirework(x, y) {
 
 function handleGameTap(x, y) {
   spawnEffect(x, y);
-  playBlip();
+  // Only beep in game mode — during video playback the sound effects
+  // would clash with the song the kid is actually watching.
+  if (!videoView.classList.contains('active')) playBlip();
 }
 
 // ============================================
@@ -1639,8 +1641,9 @@ setInterval(() => {
     if (now - p.lastSpawn >= 80) {
       spawnHoldParticle(p.x, p.y);
       p.lastSpawn = now;
-      // Quieter blip while holding so it doesn't get overwhelming
-      if (Math.random() < 0.25) playBlip();
+      // Quieter blip while holding so it doesn't get overwhelming —
+      // suppressed entirely during video playback (see handleGameTap).
+      if (!videoView.classList.contains('active') && Math.random() < 0.25) playBlip();
     }
   });
 }, 80);
