@@ -518,9 +518,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v21 · Tap to play</span>
+      <span class="sub">v22 · Tap to play</span>
     </h1>
-    <div class="version-badge">v21</div>
+    <div class="version-badge">v22</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -551,7 +551,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v21</div>
+    <div class="game-version-badge">v22</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -728,6 +728,7 @@
     <p class="sp-hint">Live: <span id="gyroReadout" style="font-family:monospace;color:var(--m3-primary-container)">—</span></p>
 
     <div class="sp-actions">
+      <button class="reset" id="settingsExport">Export</button>
       <button class="reset" id="settingsReset">Reset</button>
     </div>
   </aside>
@@ -1335,6 +1336,26 @@ function bindSettingsControls() {
     applyStaticFilterAttrs();
     syncControlsFromState();
     saveFilterState();
+  });
+
+  // Export: copies the current filterState as JSON to the clipboard so the
+  // user can paste it back to share their tuning. Falls back to a prompt()
+  // dialog when clipboard access is denied (e.g. insecure context).
+  document.getElementById('settingsExport').addEventListener('click', async () => {
+    const btn = document.getElementById('settingsExport');
+    const json = JSON.stringify(filterState, null, 2);
+    const flash = (msg) => {
+      const orig = btn.textContent;
+      btn.textContent = msg;
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    };
+    try {
+      await navigator.clipboard.writeText(json);
+      flash('Copied!');
+    } catch (err) {
+      prompt('Copy these settings:', json);
+      flash('Shown');
+    }
   });
 }
 
