@@ -308,7 +308,10 @@
   .game-view { position: absolute; inset: 0; display: none; background: #0a0a1a; overflow: hidden; touch-action: none; }
   .game-view.active { display: block; }
   .game-canvas { position: absolute; inset: 0; pointer-events: none; }
-  .rainbow-canvas { position: absolute; inset: 0; pointer-events: none; filter: url(#rainbowDisplace); will-change: filter; }
+  /* The displacement filter is no longer applied via CSS — it's baked into
+     the canvas pixels each frame inside drawDots() (AS3 BitmapData.applyFilter
+     pattern), so effects accumulate over time. */
+  .rainbow-canvas { position: absolute; inset: 0; pointer-events: none; will-change: transform; }
   /* Hidden SVG host for the displacement filter — never rendered, only referenced */
   .filter-host { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 
@@ -515,9 +518,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v20 · Tap to play</span>
+      <span class="sub">v21 · Tap to play</span>
     </h1>
-    <div class="version-badge">v20</div>
+    <div class="version-badge">v21</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
     </div>
@@ -548,7 +551,7 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v20</div>
+    <div class="game-version-badge">v21</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
@@ -623,8 +626,8 @@
     <h3>Displacement Map</h3>
 
     <div class="sp-row">
-      <label>Scale <span class="val" id="v-scale"></span></label>
-      <input type="range" id="i-scale" min="0" max="400" step="1">
+      <label>Scale (px / frame) <span class="val" id="v-scale"></span></label>
+      <input type="range" id="i-scale" min="0" max="30" step="0.1">
     </div>
 
     <div class="sp-row">
@@ -1043,8 +1046,10 @@ const FILTER_DEFAULTS = {
   numOctaves:   2,
   seed:         1,
   stitch:       false,
-  // feDisplacementMap
-  scale:        85,
+  // feDisplacementMap — applied to the bitmap each frame, so this is per-frame
+  // displacement. ~2-4 px gives a fluid drift; >10 px wipes the canvas in a
+  // second. (Old default of 85 was for one-shot CSS display filtering.)
+  scale:        3,
   xChan:        'R',
   yChan:        'G',
   // self-evolution
@@ -1207,7 +1212,7 @@ const SLIDER_BINDINGS = [
   ['baseFreqY', 5],
   ['octaves',   0, 'numOctaves'],
   ['seed',      0],
-  ['scale',     0],
+  ['scale',     1],
   ['oscAmpX',   5],
   ['oscAmpY',   5],
   ['oscSpdX',   4],
@@ -1408,10 +1413,15 @@ function drawDots() {
   const w = window.innerWidth;
   const h = window.innerHeight;
 
-  // STEP 1: snapshot the current canvas history into the offscreen blur canvas
+  // STEP 1: snapshot the current canvas history into the offscreen blur canvas.
+  // We compose blur AND the SVG displacement filter into a single ctx.filter
+  // string so both effects mutate the pixels — the AS3 BitmapData.applyFilter
+  // pattern. Each frame the canvas pixels get displaced + blurred a little
+  // more, so old strokes drift and dissolve over time instead of just being
+  // displayed through a static lens.
   bctx.setTransform(1, 0, 0, 1, 0, 0); // reset (no DPR scale on blur canvas)
   bctx.clearRect(0, 0, blurCanvas.width, blurCanvas.height);
-  bctx.filter = `blur(${BLUR_PX}px)`;
+  bctx.filter = `blur(${BLUR_PX}px) url(#rainbowDisplace)`;
   bctx.drawImage(rainbowCanvas, 0, 0);
   bctx.filter = 'none';
 
