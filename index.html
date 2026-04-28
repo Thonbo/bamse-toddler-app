@@ -671,9 +671,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v33 · Tap to play</span>
+      <span class="sub">v34 · Tap to play</span>
     </h1>
-    <div class="version-badge">v33</div>
+    <div class="version-badge">v34</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
       <button class="tile physics" id="physicsBtn"><span class="emoji">🧱</span><span class="label">Klodser</span></button>
@@ -696,14 +696,14 @@
   <div class="phys-view" id="physicsView">
     <canvas class="phys-canvas" id="physicsCanvas"></canvas>
     <button class="game-back" id="physicsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v33</div>
+    <div class="game-version-badge">v34</div>
   </div>
 
   <!-- SOUNDS VIEW — 2x5 grid of arcade buttons, animal sounds + popups -->
   <div class="sounds-view" id="soundsView">
     <div class="sounds-grid" id="soundsGrid"></div>
     <button class="game-back" id="soundsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v33</div>
+    <div class="game-version-badge">v34</div>
   </div>
 
   <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
@@ -720,21 +720,15 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v33</div>
+    <div class="game-version-badge">v34</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
        Transparent. Captures touches and renders rainbow trail + tap effects. -->
   <div class="paint-layer" id="paintLayer">
-    <!-- Hidden SVG filter for the rainbow displacement effect -->
-    <svg class="filter-host" aria-hidden="true">
-      <defs>
-        <filter id="rainbowDisplace" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
-          <feTurbulence id="rainbowTurb" type="fractalNoise" baseFrequency="0.006 0.008" numOctaves="2" seed="1" stitchTiles="noStitch" result="noise"/>
-          <feDisplacementMap id="rainbowDispMap" in="SourceGraphic" in2="noise" scale="85" xChannelSelector="R" yChannelSelector="G"/>
-        </filter>
-      </defs>
-    </svg>
+    <!-- Hidden host kept for legacy reasons; SVG displacement filter
+         was replaced by a WebGL fragment shader in v34. -->
+    <svg class="filter-host" aria-hidden="true"></svg>
     <canvas class="rainbow-canvas" id="rainbowCanvas"></canvas>
     <div class="game-canvas" id="gameCanvas"></div>
     <div class="fps-badge" id="fpsBadge">— fps</div>
@@ -753,17 +747,9 @@
   <!-- ===== SETTINGS PANEL — long-press top-left corner of game view to open ===== -->
   <aside class="settings-panel" id="settingsPanel" aria-hidden="true">
     <h2>Filter Settings <button class="sp-close" id="settingsClose" aria-label="Close">×</button></h2>
-    <p class="sp-hint">Tweak the SVG <code>feTurbulence</code> + <code>feDisplacementMap</code> in real time. Values persist locally.</p>
+    <p class="sp-hint">WebGL fragment shader: domain-warped fBm displacement (Inigo Quilez style) sampled per axis. Continuous evolution via shader <code>iTime</code> — no seed pops.</p>
 
-    <h3>Perlin Noise (feTurbulence)</h3>
-
-    <div class="sp-row">
-      <label>Type</label>
-      <div class="seg" data-seg="turbType">
-        <button data-val="fractalNoise">Fractal</button>
-        <button data-val="turbulence">Turbulence</button>
-      </div>
-    </div>
+    <h3>Noise field</h3>
 
     <div class="sp-row">
       <label>Base frequency X <span class="val" id="v-baseFreqX"></span></label>
@@ -776,44 +762,31 @@
     </div>
 
     <div class="sp-row">
-      <label>numOctaves <span class="val" id="v-octaves"></span></label>
-      <input type="range" id="i-octaves" min="1" max="8" step="1">
+      <label>fBm octaves <span class="val" id="v-octaves"></span></label>
+      <input type="range" id="i-octaves" min="1" max="6" step="1">
     </div>
 
-    <div class="sp-row">
-      <label>Seed <span class="val" id="v-seed"></span></label>
-      <input type="range" id="i-seed" min="0" max="999" step="1">
-    </div>
-
-    <div class="sp-row toggle">
-      <label>Stitch tiles <input type="checkbox" id="i-stitch"></label>
-    </div>
-
-    <h3>Displacement Map</h3>
+    <h3>Displacement</h3>
 
     <div class="sp-row">
       <label>Scale (px / frame) <span class="val" id="v-scale"></span></label>
-      <input type="range" id="i-scale" min="0" max="30" step="0.1">
+      <input type="range" id="i-scale" min="0" max="60" step="0.1">
     </div>
 
     <div class="sp-row">
-      <label>X channel selector</label>
-      <div class="seg" data-seg="xChan">
-        <button data-val="R">R</button><button data-val="G">G</button>
-        <button data-val="B">B</button><button data-val="A">A</button>
-      </div>
+      <label>Domain-warp strength <span class="val" id="v-warpStrength"></span></label>
+      <input type="range" id="i-warpStrength" min="0" max="12" step="0.1">
     </div>
 
+    <h3>Time evolution</h3>
+    <p class="sp-hint">Shader <code>iTime</code> advances by this much each frame. Higher = faster flowing field. Zero freezes the field.</p>
+
     <div class="sp-row">
-      <label>Y channel selector</label>
-      <div class="seg" data-seg="yChan">
-        <button data-val="R">R</button><button data-val="G">G</button>
-        <button data-val="B">B</button><button data-val="A">A</button>
-      </div>
+      <label>Time speed <span class="val" id="v-timeSpeed"></span></label>
+      <input type="range" id="i-timeSpeed" min="0" max="0.5" step="0.001">
     </div>
 
     <h3>Trail fade &amp; blur</h3>
-    <p class="sp-hint">How fast the bitmap clears each frame. Lower fade alpha = ghosts disappear faster. Higher blur accumulates over time, softening old strokes.</p>
 
     <div class="sp-row">
       <label>Fade alpha (per frame) <span class="val" id="v-fadeAlpha"></span></label>
@@ -828,17 +801,6 @@
     <div class="sp-row">
       <label>Alpha decrement (per frame) <span class="val" id="v-alphaDecrement"></span></label>
       <input type="range" id="i-alphaDecrement" min="0" max="0.2" step="0.005">
-    </div>
-
-    <h3>Self-evolution animation</h3>
-
-    <div class="sp-row toggle">
-      <label>Auto-evolve seed <input type="checkbox" id="i-seedEvolve"></label>
-    </div>
-
-    <div class="sp-row">
-      <label>Seed cycle (frames / bump) <span class="val" id="v-seedInterval"></span></label>
-      <input type="range" id="i-seedInterval" min="0.01" max="50" step="0.01">
     </div>
 
     <div class="sp-actions">
@@ -1147,6 +1109,180 @@ const rctx = rainbowCanvas.getContext('2d');
 const blurCanvas = document.createElement('canvas');
 const bctx = blurCanvas.getContext('2d');
 
+// ----- WebGL displacement canvas (v34) -----
+// Replaces the SVG feTurbulence + feDisplacementMap chain. Each frame the
+// rainbow 2D canvas is uploaded as a texture, the fragment shader runs IQ
+// domain-warped fBm and samples the texture at the displaced coord, output
+// is drawn back onto the 2D canvas. iTime drives continuous evolution.
+const glCanvas = document.createElement('canvas');
+const gl = glCanvas.getContext('webgl', { premultipliedAlpha: false, antialias: false, preserveDrawingBuffer: false });
+let glProgram = null;
+let glTex = null;
+let glUniforms = {};
+let glReady = false;
+
+const VERT_SRC = `
+attribute vec2 a_pos;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+// Inigo-Quilez-style domain-warped fBm. Two independent fBm calls produce
+// genuinely different x and y displacement (the "needs separate channels"
+// requirement) without stacking grayscale noise. iTime threads through the
+// inner warps so the field flows continuously instead of resetting.
+const FRAG_SRC = `
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_tex;
+uniform vec2  u_resolution;     // canvas px (buffer)
+uniform float u_time;
+uniform float u_baseFreqX;
+uniform float u_baseFreqY;
+uniform int   u_octaves;
+uniform float u_scale;          // displacement magnitude in CSS pixels
+uniform float u_warpStrength;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f*f*(3.0 - 2.0*f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 6; i++) {
+    if (i >= u_octaves) break;
+    v += a * vnoise(p);
+    p *= 2.0;
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 fc = v_uv * u_resolution; // pixel coord
+  vec2 p  = fc * vec2(u_baseFreqX, u_baseFreqY);
+  float t = u_time;
+  // Two-stage domain warp; each stage offset by time, different phase per axis
+  vec2 q = vec2(fbm(p + vec2(0.0, t)),
+                fbm(p + vec2(5.2, 1.3 - t)));
+  vec2 r = vec2(fbm(p + u_warpStrength * q + vec2(1.7 + 0.5*t, 9.2)),
+                fbm(p + u_warpStrength * q + vec2(8.3, 2.8 - 0.5*t)));
+  vec2 d = (r - 0.5) * 2.0 * u_scale;        // CSS-pixel displacement
+  vec2 sampleUV = v_uv + d / u_resolution;
+  // Out-of-bounds samples become transparent so the field doesn't smear
+  // edge pixels infinitely (matches feDisplacementMap edgeMode="duplicate"
+  // would NOT — we want "transparent" so empty area stays empty).
+  if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
+  gl_FragColor = texture2D(u_tex, sampleUV);
+}`;
+
+function compile(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error('Shader compile failed:', gl.getShaderInfoLog(sh));
+    return null;
+  }
+  return sh;
+}
+
+function initGL() {
+  if (!gl) { console.warn('WebGL unavailable — displacement disabled.'); return; }
+  const vs = compile(gl.VERTEX_SHADER,   VERT_SRC);
+  const fs = compile(gl.FRAGMENT_SHADER, FRAG_SRC);
+  if (!vs || !fs) return;
+  glProgram = gl.createProgram();
+  gl.attachShader(glProgram, vs);
+  gl.attachShader(glProgram, fs);
+  gl.linkProgram(glProgram);
+  if (!gl.getProgramParameter(glProgram, gl.LINK_STATUS)) {
+    console.error('Program link failed:', gl.getProgramInfoLog(glProgram));
+    return;
+  }
+  // Full-screen quad
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1, -1,   1, -1,   -1, 1,
+    -1,  1,   1, -1,    1, 1,
+  ]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(glProgram, 'a_pos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  // Texture for the rainbow canvas snapshot
+  glTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, glTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+
+  // Cache uniform locations
+  glUniforms = {
+    tex:          gl.getUniformLocation(glProgram, 'u_tex'),
+    resolution:   gl.getUniformLocation(glProgram, 'u_resolution'),
+    time:         gl.getUniformLocation(glProgram, 'u_time'),
+    baseFreqX:    gl.getUniformLocation(glProgram, 'u_baseFreqX'),
+    baseFreqY:    gl.getUniformLocation(glProgram, 'u_baseFreqY'),
+    octaves:      gl.getUniformLocation(glProgram, 'u_octaves'),
+    scale:        gl.getUniformLocation(glProgram, 'u_scale'),
+    warpStrength: gl.getUniformLocation(glProgram, 'u_warpStrength'),
+  };
+  glReady = true;
+}
+
+function renderDisplacementGL() {
+  if (!glReady) return false;
+  // Match GL canvas size to source canvas if needed
+  if (glCanvas.width !== rainbowCanvas.width || glCanvas.height !== rainbowCanvas.height) {
+    glCanvas.width  = rainbowCanvas.width;
+    glCanvas.height = rainbowCanvas.height;
+  }
+  gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(glProgram);
+
+  // Upload the live 2D canvas as a texture
+  gl.bindTexture(gl.TEXTURE_2D, glTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, rainbowCanvas);
+  gl.uniform1i(glUniforms.tex, 0);
+
+  const dpr = window.devicePixelRatio || 1;
+  gl.uniform2f(glUniforms.resolution, glCanvas.width, glCanvas.height);
+  gl.uniform1f(glUniforms.time, shaderTime);
+  // baseFreq from the panel is in 1/CSS-px; the shader works in buffer px,
+  // so divide by dpr to keep the visible noise period consistent across
+  // pixel ratios.
+  gl.uniform1f(glUniforms.baseFreqX, filterState.baseFreqX / dpr);
+  gl.uniform1f(glUniforms.baseFreqY, filterState.baseFreqY / dpr);
+  gl.uniform1i(glUniforms.octaves, Math.max(1, Math.min(6, Math.round(filterState.numOctaves))));
+  gl.uniform1f(glUniforms.scale, filterState.scale * dpr); // displacement in buffer px
+  gl.uniform1f(glUniforms.warpStrength, filterState.warpStrength);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  return true;
+}
+
 function resizeRainbow() {
   const dpr = window.devicePixelRatio || 1;
   rainbowCanvas.width  = window.innerWidth  * dpr;
@@ -1161,8 +1297,10 @@ function resizeRainbow() {
   // Keep the offscreen blur canvas in sync with the rainbow canvas
   blurCanvas.width  = rainbowCanvas.width;
   blurCanvas.height = rainbowCanvas.height;
+  // GL canvas resyncs lazily inside renderDisplacementGL()
 }
 resizeRainbow();
+initGL();
 // Resize on both resize and orientationchange. orientationchange fires before
 // the viewport is updated on some Android builds, so we re-run on the next frame too.
 window.addEventListener('resize', resizeRainbow);
@@ -1180,36 +1318,29 @@ const pointers = new Map(); // pointerId -> { x, y, hue }
 // All feTurbulence + feDisplacementMap settings are exposed in a settings panel
 // (long-press top-left of the game view to open). State persists in localStorage.
 // ============================================
-const turbEl    = document.getElementById('rainbowTurb');
-const dispMapEl = document.getElementById('rainbowDispMap');
-
+// v34: SVG feTurbulence + feDisplacementMap replaced by a WebGL fragment
+// shader. The shader does Inigo Quilez-style domain-warped fBm with iTime
+// (continuous evolution, no seed pops) and computes an independent value
+// per axis, so x and y get genuinely different displacement vectors —
+// that's the "two channels" requirement (R/G in feDisplacementMap terms).
 const FILTER_DEFAULTS = {
-  // Tuned baseline (user-supplied via panel Export, v33). Hit Reset in the
-  // panel to land back here; otherwise saved state in localStorage wins.
-  // feTurbulence
-  turbType:     'fractalNoise',
-  baseFreqX:    0.0055,
-  baseFreqY:    0.0043,
-  numOctaves:   3,
-  seed:         0,
-  stitch:       true,
-  // feDisplacementMap (per-frame applied to bitmap)
-  scale:        14.9,
-  xChan:        'R',
-  yChan:        'G',
-  // self-evolution
-  seedEvolve:   true,
-  seedInterval: 1,        // frames per integer seed bump; range 0.01–50
+  // Noise field
+  baseFreqX:    0.0055,   // 1 / period in pixels for x-axis sampling
+  baseFreqY:    0.0043,   // 1 / period in pixels for y-axis sampling
+  numOctaves:   3,        // fBm octaves; max 6 in shader
+  // Displacement
+  scale:        14.9,     // displacement magnitude in pixels
+  warpStrength: 4.0,      // domain-warp depth (q is multiplied by this before re-sampling)
+  // Time evolution (replaces seedEvolve / seedInterval)
+  timeSpeed:    0.10,     // shader iTime advance per frame
   // History fade & blur (per-frame applied to the bitmap)
   fadeAlpha:      0.999,
   blurPx:         3,
   alphaDecrement: 0,
 };
 
-// Storage version: v3 bumped when oscillation keys were removed (v33).
-// Each bump invalidates any previously-saved state so users land on the
-// new clean defaults rather than carrying stale keys forward.
-const FILTER_STORAGE_KEY = 'vesters.filter.v3';
+// Storage version: v4 bumped when SVG filter was replaced by WebGL (v34).
+const FILTER_STORAGE_KEY = 'vesters.filter.v4';
 function loadFilterState() {
   try {
     const raw = localStorage.getItem(FILTER_STORAGE_KEY);
@@ -1222,50 +1353,12 @@ function saveFilterState() {
 }
 const filterState = loadFilterState();
 
-// Apply all static (non-animated) attributes to the SVG filter primitives.
-// baseFrequency is static now (oscillation removed in v33); only the seed
-// continues to evolve in the animation loop.
-function applyStaticFilterAttrs() {
-  turbEl.setAttribute('type', filterState.turbType);
-  turbEl.setAttribute('numOctaves', filterState.numOctaves);
-  turbEl.setAttribute('stitchTiles', filterState.stitch ? 'stitch' : 'noStitch');
-  const fx = Math.max(0.00001, filterState.baseFreqX);
-  const fy = Math.max(0.00001, filterState.baseFreqY);
-  turbEl.setAttribute('baseFrequency', `${fx.toFixed(5)} ${fy.toFixed(5)}`);
-  dispMapEl.setAttribute('scale', filterState.scale);
-  dispMapEl.setAttribute('xChannelSelector', filterState.xChan);
-  dispMapEl.setAttribute('yChannelSelector', filterState.yChan);
-}
-applyStaticFilterAttrs();
+// applyStaticFilterAttrs / animateFilter were SVG-filter glue; in v34 the
+// shader takes uniforms directly each frame, so these are no-ops kept only
+// to satisfy existing call sites in the panel binding code.
+function applyStaticFilterAttrs() { /* shader uniforms are uploaded per-frame */ }
 
-// Master animation loop
-let filterTime = 0;
-let seedAccum = 0;              // accumulator for fractional seedInterval
-let currentSeed = 0;            // current rendered seed (integer applied to feTurbulence)
-function animateFilter() {
-  filterTime += 1;
-  const s = filterState;
-
-  // Seed: accumulator-based so fractional seedInterval works (frames per
-  // integer seed bump). seedInterval=1 → +1 seed/frame; =0.1 → +10/frame;
-  // =10 → +0.1/frame (bumps every 10 frames). Old modulo approach broke
-  // for intervals < 1 because integer % fractional ≠ 0 reliably.
-  if (s.seedEvolve && s.seedInterval > 0) {
-    seedAccum += 1 / s.seedInterval;
-    if (seedAccum >= 1) {
-      const step = Math.floor(seedAccum);
-      seedAccum -= step;
-      currentSeed = (currentSeed + step) % 1000;
-      turbEl.setAttribute('seed', currentSeed);
-    }
-  } else if (!s.seedEvolve) {
-    currentSeed = s.seed;
-    turbEl.setAttribute('seed', currentSeed);
-  }
-
-  requestAnimationFrame(animateFilter);
-}
-animateFilter();
+let shaderTime = 0;             // accumulates by filterState.timeSpeed each frame
 
 // ============================================
 // SETTINGS PANEL — bind controls to filterState
@@ -1274,14 +1367,15 @@ const settingsPanel    = document.getElementById('settingsPanel');
 const settingsZone     = document.getElementById('settingsZone');
 const settingsProgress = document.getElementById('settingsProgress');
 
-// Numeric inputs: [stateKey, displayDigits]
+// Numeric inputs: [id, displayDigits, stateKey?]
+// stateKey defaults to id when omitted.
 const SLIDER_BINDINGS = [
-  ['baseFreqX', 5],
-  ['baseFreqY', 5],
-  ['octaves',   0, 'numOctaves'],
-  ['seed',      0],
-  ['scale',     1],
-  ['seedInterval', 2],
+  ['baseFreqX',      5],
+  ['baseFreqY',      5],
+  ['octaves',        0, 'numOctaves'],
+  ['scale',          1],
+  ['warpStrength',   1],
+  ['timeSpeed',      3],
   ['fadeAlpha',      3],
   ['blurPx',         2],
   ['alphaDecrement', 3],
@@ -1301,16 +1395,9 @@ function syncControlsFromState() {
     input.value = filterState[key];
     if (valEl) valEl.textContent = fmt(filterState[key], digits);
   });
-  // Toggles
-  document.getElementById('i-stitch').checked      = !!filterState.stitch;
-  document.getElementById('i-seedEvolve').checked  = !!filterState.seedEvolve;
-  // Segmented controls
-  document.querySelectorAll('.seg').forEach(seg => {
-    const key = seg.dataset.seg;
-    seg.querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.val === filterState[key]);
-    });
-  });
+  // (No toggles or segmented controls remain — turbType/stitch/xChan/
+  // yChan/seedEvolve were SVG-feTurbulence-specific and went away when
+  // the WebGL shader replaced the chain in v34.)
 }
 
 function bindSettingsControls() {
@@ -1325,29 +1412,6 @@ function bindSettingsControls() {
       if (valEl) valEl.textContent = fmt(num, digits);
       applyStaticFilterAttrs();
       saveFilterState();
-    });
-  });
-
-  const bindToggle = (inputId, key) => {
-    const el = document.getElementById(inputId);
-    el.addEventListener('change', () => {
-      filterState[key] = el.checked;
-      applyStaticFilterAttrs();
-      saveFilterState();
-    });
-  };
-  bindToggle('i-stitch',     'stitch');
-  bindToggle('i-seedEvolve', 'seedEvolve');
-
-  document.querySelectorAll('.seg').forEach(seg => {
-    const key = seg.dataset.seg;
-    seg.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        filterState[key] = btn.dataset.val;
-        seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
-        applyStaticFilterAttrs();
-        saveFilterState();
-      });
     });
   });
 
@@ -1454,23 +1518,30 @@ function drawDots() {
   const w = window.innerWidth;
   const h = window.innerHeight;
 
-  // STEP 1: snapshot the current canvas history into the offscreen blur canvas.
-  // We compose blur AND the SVG displacement filter into a single ctx.filter
-  // string so both effects mutate the pixels — the AS3 BitmapData.applyFilter
-  // pattern. Each frame the canvas pixels get displaced + blurred a little
-  // more, so old strokes drift and dissolve over time instead of just being
-  // displayed through a static lens.
-  bctx.setTransform(1, 0, 0, 1, 0, 0); // reset (no DPR scale on blur canvas)
+  // STEP 1: WebGL displacement pass. Upload the rainbow canvas as a texture,
+  // run domain-warped fBm in the fragment shader, and write the displaced
+  // result into the offscreen blur canvas (via the GL canvas as an
+  // intermediary, since drawImage(glCanvas) is fast). The 2D blur is
+  // composed over it via ctx.filter in the redraw step.
+  shaderTime += filterState.timeSpeed;
+  const haveGL = renderDisplacementGL();
+  bctx.setTransform(1, 0, 0, 1, 0, 0);
   bctx.clearRect(0, 0, blurCanvas.width, blurCanvas.height);
-  bctx.filter = `blur(${filterState.blurPx}px) url(#rainbowDisplace)`;
-  bctx.drawImage(rainbowCanvas, 0, 0);
-  bctx.filter = 'none';
+  if (haveGL) {
+    bctx.drawImage(glCanvas, 0, 0);
+  } else {
+    // WebGL unavailable — degrade gracefully (no displacement, just history)
+    bctx.drawImage(rainbowCanvas, 0, 0);
+  }
 
-  // STEP 2: clear the rainbow canvas and redraw the (blurred) history at reduced alpha
+  // STEP 2: clear the rainbow canvas and redraw the (displaced) history at
+  // reduced alpha, applying the 2D blur on the way down.
   rctx.setTransform(1, 0, 0, 1, 0, 0); // work in raw pixel space for the redraw
   rctx.clearRect(0, 0, rainbowCanvas.width, rainbowCanvas.height);
   rctx.globalAlpha = filterState.fadeAlpha;
+  rctx.filter = filterState.blurPx > 0 ? `blur(${filterState.blurPx}px)` : 'none';
   rctx.drawImage(blurCanvas, 0, 0);
+  rctx.filter = 'none';
   rctx.globalAlpha = 1;
 
   // STEP 2b: subtractive alpha pass — knocks every pixel's alpha down by a
