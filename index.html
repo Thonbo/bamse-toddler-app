@@ -129,13 +129,13 @@
   }
   .grid .tile.game { grid-column: span 2; aspect-ratio: 2.4 / 1; }
 
-  /* Landscape: 8 tiles (5 videos + 3 games) in 4 columns × 2 rows */
+  /* Landscape: 9 tiles (6 videos + 3 games) in 5 columns × 2 rows */
   @media (orientation: landscape) {
     .grid {
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       grid-auto-rows: 1fr;
-      max-width: min(100%, calc(100vh * 2.2));
-      gap: clamp(8px, 1.2vw, 14px);
+      max-width: min(100%, calc(100vh * 2.6));
+      gap: clamp(6px, 1vw, 12px);
     }
     .grid .tile,
     .grid .tile.game {
@@ -671,9 +671,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v35 · Tap to play</span>
+      <span class="sub">v36 · Tap to play</span>
     </h1>
-    <div class="version-badge">v35</div>
+    <div class="version-badge">v36</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
       <button class="tile physics" id="physicsBtn"><span class="emoji">🧱</span><span class="label">Klodser</span></button>
@@ -696,14 +696,14 @@
   <div class="phys-view" id="physicsView">
     <canvas class="phys-canvas" id="physicsCanvas"></canvas>
     <button class="game-back" id="physicsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v35</div>
+    <div class="game-version-badge">v36</div>
   </div>
 
   <!-- SOUNDS VIEW — 2x5 grid of arcade buttons, animal sounds + popups -->
   <div class="sounds-view" id="soundsView">
     <div class="sounds-grid" id="soundsGrid"></div>
     <button class="game-back" id="soundsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v35</div>
+    <div class="game-version-badge">v36</div>
   </div>
 
   <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
@@ -720,14 +720,14 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v35</div>
+    <div class="game-version-badge">v36</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
        Transparent. Captures touches and renders rainbow trail + tap effects. -->
   <div class="paint-layer" id="paintLayer">
     <!-- Hidden host kept for legacy reasons; SVG displacement filter
-         was replaced by a WebGL fragment shader in v35. -->
+         was replaced by a WebGL fragment shader in v36. -->
     <svg class="filter-host" aria-hidden="true"></svg>
     <canvas class="rainbow-canvas" id="rainbowCanvas"></canvas>
     <div class="game-canvas" id="gameCanvas"></div>
@@ -819,11 +819,12 @@
 // To get an ID: from https://www.youtube.com/watch?v=ABC123 the ID is "ABC123"
 // ============================================
 const VIDEOS = [
-  { id: '4m_qHSRSeIU', title: 'Jodlesangen', emoji: '🎵' },
-  { id: 'MrdvKm9Nx7M', title: 'Brum Brum',   emoji: '🚗' },
-  { id: '21ZYqu7AC1c', title: 'Okay Okay',   emoji: '🎺' },
-  { id: 'JYT8D9nMGH4', title: 'Bamses Sang', emoji: '🐻' },
-  { id: 'fSDDn4l8JoQ', title: 'Hjulene',     emoji: '🚌' },
+  { id: '4m_qHSRSeIU', title: 'Jodlesangen',  emoji: '🎵' },
+  { id: 'MrdvKm9Nx7M', title: 'Brum Brum',    emoji: '🚗' },
+  { id: '21ZYqu7AC1c', title: 'Okay Okay',    emoji: '🎺' },
+  { id: 'JYT8D9nMGH4', title: 'Bamses Sang',  emoji: '🐻' },
+  { id: 'fSDDn4l8JoQ', title: 'Hjulene',      emoji: '🚌' },
+  { id: 'IeQHiZn-s7I', title: 'Stor og Gul',  emoji: '💛' },
 ];
 
 // ============================================
@@ -1109,7 +1110,7 @@ const rctx = rainbowCanvas.getContext('2d');
 const blurCanvas = document.createElement('canvas');
 const bctx = blurCanvas.getContext('2d');
 
-// ----- WebGL displacement canvas (v35) -----
+// ----- WebGL displacement canvas (v36) -----
 // Replaces the SVG feTurbulence + feDisplacementMap chain. Each frame the
 // rainbow 2D canvas is uploaded as a texture, the fragment shader runs IQ
 // domain-warped fBm and samples the texture at the displaced coord, output
@@ -1318,7 +1319,7 @@ const pointers = new Map(); // pointerId -> { x, y, hue }
 // All feTurbulence + feDisplacementMap settings are exposed in a settings panel
 // (long-press top-left of the game view to open). State persists in localStorage.
 // ============================================
-// v35: SVG feTurbulence + feDisplacementMap replaced by a WebGL fragment
+// v36: SVG feTurbulence + feDisplacementMap replaced by a WebGL fragment
 // shader. The shader does Inigo Quilez-style domain-warped fBm with iTime
 // (continuous evolution, no seed pops) and computes an independent value
 // per axis, so x and y get genuinely different displacement vectors —
@@ -1339,7 +1340,7 @@ const FILTER_DEFAULTS = {
   alphaDecrement: 0,
 };
 
-// Storage version: v4 bumped when SVG filter was replaced by WebGL (v35).
+// Storage version: v4 bumped when SVG filter was replaced by WebGL (v36).
 const FILTER_STORAGE_KEY = 'vesters.filter.v4';
 function loadFilterState() {
   try {
@@ -1353,7 +1354,7 @@ function saveFilterState() {
 }
 const filterState = loadFilterState();
 
-// applyStaticFilterAttrs / animateFilter were SVG-filter glue; in v35 the
+// applyStaticFilterAttrs / animateFilter were SVG-filter glue; in v36 the
 // shader takes uniforms directly each frame, so these are no-ops kept only
 // to satisfy existing call sites in the panel binding code.
 function applyStaticFilterAttrs() { /* shader uniforms are uploaded per-frame */ }
@@ -1397,7 +1398,7 @@ function syncControlsFromState() {
   });
   // (No toggles or segmented controls remain — turbType/stitch/xChan/
   // yChan/seedEvolve were SVG-feTurbulence-specific and went away when
-  // the WebGL shader replaced the chain in v35.)
+  // the WebGL shader replaced the chain in v36.)
 }
 
 function bindSettingsControls() {
