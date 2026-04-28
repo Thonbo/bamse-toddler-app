@@ -671,9 +671,9 @@
     <h1 class="title">
       <span>Vesters</span>
       <span class="accent">App</span>
-      <span class="sub">v34 · Tap to play</span>
+      <span class="sub">v35 · Tap to play</span>
     </h1>
-    <div class="version-badge">v34</div>
+    <div class="version-badge">v35</div>
     <div class="grid" id="grid">
       <button class="tile game" id="gameBtn"><span class="emoji">🎮</span><span class="label">Tap Game</span></button>
       <button class="tile physics" id="physicsBtn"><span class="emoji">🧱</span><span class="label">Klodser</span></button>
@@ -696,14 +696,14 @@
   <div class="phys-view" id="physicsView">
     <canvas class="phys-canvas" id="physicsCanvas"></canvas>
     <button class="game-back" id="physicsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v34</div>
+    <div class="game-version-badge">v35</div>
   </div>
 
   <!-- SOUNDS VIEW — 2x5 grid of arcade buttons, animal sounds + popups -->
   <div class="sounds-view" id="soundsView">
     <div class="sounds-grid" id="soundsGrid"></div>
     <button class="game-back" id="soundsBack" aria-label="Back">←</button>
-    <div class="game-version-badge">v34</div>
+    <div class="game-version-badge">v35</div>
   </div>
 
   <!-- GAME VIEW (just the dark background — paint layer is rendered separately) -->
@@ -720,14 +720,14 @@
       <svg viewBox="0 0 60 60"><circle class="track" cx="30" cy="30" r="25"/><circle class="fill" cx="30" cy="30" r="25"/></svg>
       <span class="settings-icon">⚙</span>
     </div>
-    <div class="game-version-badge">v34</div>
+    <div class="game-version-badge">v35</div>
   </div>
 
   <!-- PAINT LAYER — overlays everything during video + game.
        Transparent. Captures touches and renders rainbow trail + tap effects. -->
   <div class="paint-layer" id="paintLayer">
     <!-- Hidden host kept for legacy reasons; SVG displacement filter
-         was replaced by a WebGL fragment shader in v34. -->
+         was replaced by a WebGL fragment shader in v35. -->
     <svg class="filter-host" aria-hidden="true"></svg>
     <canvas class="rainbow-canvas" id="rainbowCanvas"></canvas>
     <div class="game-canvas" id="gameCanvas"></div>
@@ -795,7 +795,7 @@
 
     <div class="sp-row">
       <label>Blur (px / frame) <span class="val" id="v-blurPx"></span></label>
-      <input type="range" id="i-blurPx" min="0" max="3" step="0.05">
+      <input type="range" id="i-blurPx" min="0" max="16" step="0.05">
     </div>
 
     <div class="sp-row">
@@ -1109,7 +1109,7 @@ const rctx = rainbowCanvas.getContext('2d');
 const blurCanvas = document.createElement('canvas');
 const bctx = blurCanvas.getContext('2d');
 
-// ----- WebGL displacement canvas (v34) -----
+// ----- WebGL displacement canvas (v35) -----
 // Replaces the SVG feTurbulence + feDisplacementMap chain. Each frame the
 // rainbow 2D canvas is uploaded as a texture, the fragment shader runs IQ
 // domain-warped fBm and samples the texture at the displaced coord, output
@@ -1318,7 +1318,7 @@ const pointers = new Map(); // pointerId -> { x, y, hue }
 // All feTurbulence + feDisplacementMap settings are exposed in a settings panel
 // (long-press top-left of the game view to open). State persists in localStorage.
 // ============================================
-// v34: SVG feTurbulence + feDisplacementMap replaced by a WebGL fragment
+// v35: SVG feTurbulence + feDisplacementMap replaced by a WebGL fragment
 // shader. The shader does Inigo Quilez-style domain-warped fBm with iTime
 // (continuous evolution, no seed pops) and computes an independent value
 // per axis, so x and y get genuinely different displacement vectors —
@@ -1339,7 +1339,7 @@ const FILTER_DEFAULTS = {
   alphaDecrement: 0,
 };
 
-// Storage version: v4 bumped when SVG filter was replaced by WebGL (v34).
+// Storage version: v4 bumped when SVG filter was replaced by WebGL (v35).
 const FILTER_STORAGE_KEY = 'vesters.filter.v4';
 function loadFilterState() {
   try {
@@ -1353,7 +1353,7 @@ function saveFilterState() {
 }
 const filterState = loadFilterState();
 
-// applyStaticFilterAttrs / animateFilter were SVG-filter glue; in v34 the
+// applyStaticFilterAttrs / animateFilter were SVG-filter glue; in v35 the
 // shader takes uniforms directly each frame, so these are no-ops kept only
 // to satisfy existing call sites in the panel binding code.
 function applyStaticFilterAttrs() { /* shader uniforms are uploaded per-frame */ }
@@ -1397,7 +1397,7 @@ function syncControlsFromState() {
   });
   // (No toggles or segmented controls remain — turbType/stitch/xChan/
   // yChan/seedEvolve were SVG-feTurbulence-specific and went away when
-  // the WebGL shader replaced the chain in v34.)
+  // the WebGL shader replaced the chain in v35.)
 }
 
 function bindSettingsControls() {
